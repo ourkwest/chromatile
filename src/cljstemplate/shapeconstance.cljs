@@ -6,7 +6,7 @@
 
 (def shape-side-length 50)
 (defn shape-pad [inner-radius]
-  (* inner-radius 1.05))
+  (* inner-radius 1.10))
 
 (def square-side shape-side-length)
 (def sqaure-inner-radius (/ square-side 2))
