@@ -4,8 +4,8 @@
         [cljstemplate.shapeconstance :only [square-pad square-radius
                                             hex-pad hex-radius
                                             tri-pad tri-radius]]
-        [cljstemplate.logging :only [logger]]
-        [cljstemplate.shape :only [level-1]])
+        [cljstemplate.logging :only [logger log-when-changes]]
+        [cljstemplate.shape :only [level-1 render check-connections do-rotations]])
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [clojure.browser.repl :as repl]
             [goog.dom :as dom]
@@ -156,19 +156,19 @@
     out))
 
 
-
 ;;;;;;;;;;
 
 (def pointer-state (atom nil))
 
 (defn handle-click [event]
-  (let [rect (.getBoundingClientRect (dom/getElement "myCanvas"))]
+  (let [rect (.getBoundingClientRect (dom/getElement "theCanvas"))]
     (reset! pointer-state {:x (- (.-clientX event) (.-left rect))
                            :y (- (.-clientY event) (.-top rect))})))
 
-(let [clicks (listen (dom/getElement "myCanvas") "click")]
+(let [clicks (listen (dom/getElement "theCanvas") "click")]
   (go (while true
         (handle-click (<! clicks)))))
+
 
 ;;;;;;;;;;
 
@@ -178,7 +178,7 @@
 (defn reset-canvas []
   (let [width (. js/window -innerWidth)
         height (. js/window -innerHeight)
-        c (dom/getElement "myCanvas")]
+        c (dom/getElement "theCanvas")]
     (set! (.-width c) width)
     (set! (.-height c) height)
     (set! (.-width (.-style c)) width)
@@ -186,6 +186,12 @@
     (def canvas [(.getContext c "2d") width height])))
 
 (reset-canvas)
+;
+(let [resizes (listen js/window "resize")]
+  (go (while true
+        (<! resizes)
+        (reset-canvas))))
+
 
 ;;;;;;;;;;
 
@@ -294,27 +300,51 @@
   (fn [shape] (process-shape shape timestamp coords)))
 
 
+
+(def this-level (atom level-1))
+
+
 (defn per-frame-processing [timestamp]
 
-  ;(swap! time-state assoc :last-frame timestamp)
-
-  ;; if clicked since last frame then check all shapes for having been clicked on
 
   (clear canvas [250 175 0])
 
-  (let [coords (if @pointer-state [(:x @pointer-state) (:y @pointer-state)] nil)
-        new-shapes (doall (map (per-shape-processor timestamp coords) @shapes))]
-    (reset! shapes new-shapes))
+
+  ;(log-when-changes :level-1 (str @this-level))
+
+  (swap! this-level check-connections)
+
+  ;(log-when-changes :level-2 (str @this-level))
+
+  (swap! this-level (partial do-rotations timestamp))
+
+  (log-when-changes :level-3 (str @this-level))
+
+  (let [{x :x y :y} @pointer-state]
+    (swap! this-level #(render canvas % [x y timestamp])))
+
+  (log-when-changes :level-4 (str @this-level))
+
+  ;(log (str @this-level))
+
+  (comment
+    (let [coords (if @pointer-state [(:x @pointer-state) (:y @pointer-state)] nil)
+          new-shapes (doall (map (per-shape-processor timestamp coords) @shapes))]
+      (reset! shapes new-shapes)))
 
   (reset! pointer-state nil)
 
-  ;(doall (map #(render-shape canvas %) @shapes))
 
-  ;(fill-arc canvas [(:x @pointer-state) (:y @pointer-state) 5] [0 TAU] [100 0 0 0.5])
 
   )
 
 
+(defn occassional-debug []
+  (log (str @this-level)))
+
+
+;(js/setInterval
+;  occassional-debug 5000)
 
 
 (defn animate [timestamp]
