@@ -6,7 +6,7 @@
              :changes true})
 
 (defn logger [log-name]
-  (if (config log-name)
+  (if (get config log-name true)
     (fn [x] (.log js/console (str "<" (name log-name) ">") x) x)
     identity))
 

@@ -19,12 +19,8 @@
 (def hex-pad (shape-pad hex-inner-radius))
 
 (def oct-side shape-side-length)
-
-; a^2 + b^2 = c^2
-; 1^2 + (1 + 2^0.5)^2 = c^2
-; 1 + (3 + 2*2^0.5) = c^2
-
-(def oct-radius (* oct-side (Math.sqrt (+ 2 ROOT_TWO))))
+(def oct-radius (Math.sqrt (+ (* (/ oct-side 2) (/ oct-side 2))
+                              (* (+ (/ oct-side 2) (/ oct-side ROOT_TWO)) (+ (/ oct-side 2) (/ oct-side ROOT_TWO))))))
 (def oct-inner-radius (* oct-side (/ (+ 1 ROOT_TWO) 2)))
 (def oct-pad (shape-pad oct-inner-radius))
 

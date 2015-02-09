@@ -5,7 +5,9 @@
                                             hex-pad hex-radius
                                             tri-pad tri-radius]]
         [cljstemplate.logging :only [logger log-when-changes]]
-        [cljstemplate.shape :only [level-1 render check-connections do-rotations]])
+        [cljstemplate.shape :only [level-1 render check-connections do-rotations]]
+        [cljstemplate.levels :only [level-2]]
+        )
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [clojure.browser.repl :as repl]
             [goog.dom :as dom]
@@ -15,7 +17,6 @@
 ;; (repl/connect "http://localhost:9000/repl")
 
 ;(enable-console-print!)
-
 
 
 
@@ -301,13 +302,16 @@
 
 
 
-(def this-level (atom level-1))
+(log (str "1 ==> " level-1))
+(log (str "2 ==> " level-2))
+
+(def this-level (atom level-2))
 
 
 (defn per-frame-processing [timestamp]
 
 
-  (clear canvas [250 175 0])
+  (clear canvas (first (:colours @this-level)))
 
 
   ;(log-when-changes :level-1 (str @this-level))
@@ -318,25 +322,25 @@
 
   (swap! this-level (partial do-rotations timestamp))
 
-  (log-when-changes :level-3 (str @this-level))
+  ;(log-when-changes :level-3 (str @this-level))
 
   (let [{x :x y :y} @pointer-state]
-    (swap! this-level #(render canvas % [x y timestamp])))
+    (swap! this-level #(render canvas % [x y timestamp] timestamp)))
 
-  (log-when-changes :level-4 (str @this-level))
+  ;(log-when-changes :level-4 (str @this-level))
 
   ;(log (str @this-level))
 
-  (comment
-    (let [coords (if @pointer-state [(:x @pointer-state) (:y @pointer-state)] nil)
-          new-shapes (doall (map (per-shape-processor timestamp coords) @shapes))]
-      (reset! shapes new-shapes)))
+  ;(comment
+  ;  (let [coords (if @pointer-state [(:x @pointer-state) (:y @pointer-state)] nil)
+  ;        new-shapes (doall (map (per-shape-processor timestamp coords) @shapes))]
+  ;    (reset! shapes new-shapes)))
 
   (reset! pointer-state nil)
 
 
-
   )
+
 
 
 (defn occassional-debug []
@@ -352,3 +356,6 @@
   (.requestAnimationFrame js/window animate))
 
 (.requestAnimationFrame js/window animate)
+
+
+;(thing)
