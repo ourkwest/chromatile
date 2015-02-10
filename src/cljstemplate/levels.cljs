@@ -47,7 +47,9 @@
 (defn mk-shapes [shapes [x y r] [n neighbours & rest]]
   ;(log (str "Called with " n ", " neighbours (if rest " and more..." "")))
   (let [my-pad (pads n)
-        new-shape {:n n :location (path [x y r] [0 my-pad] [PI 0])}
+        new-shape (if (= 0 n)
+                    []
+                    [{:n n :location (path [x y r] [0 my-pad] [PI 0])}])
         my-angle (angles n)
 
         neighbours-pairs (partition 2 neighbours)
@@ -63,7 +65,7 @@
         more-shapes (if rest (mk-shapes [] [x y r] rest) [])
         ]
     ;(log (str {:n n :r r :my-angle my-angle :neighbour-angles (take 4 neighbour-angles)}))
-    (vec (concat shapes [new-shape] neighbour-shapes more-shapes))))
+    (vec (concat shapes new-shape neighbour-shapes more-shapes))))
 
 
 (defn round2
@@ -112,9 +114,16 @@
                                          [(mod (inc a) (:n shape)) b]
                                          [a b]))))
                               ))))
+(defn add-blank-wires [channel-count shape]
+  (assoc shape :wiring (vec (for [i (range channel-count)]
+                              []
+                              ))))
 
 (defn add-wires [shapes channel-count]
   (mapv (partial add-shape-wires channel-count) shapes))
+
+(defn blank-wires [shapes channel-count]
+  (mapv (partial add-blank-wires channel-count) shapes))
 
 
 
@@ -187,25 +196,25 @@
       ;)))
 
 
+(defn wire [level shape-id wiring]
+  (assoc-in level [:shapes shape-id :wiring] wiring))
+
 (defn fake [shapes]
-  (mapv #(merge % {
-                   ;:neighbours [nil nil nil nil nil nil]
-                   :rotation {:position 0}}) shapes))
+  (mapv #(merge % {:rotation {:position 0}}) shapes))
 
 
-(defn mk-level [data [start-index end-index] colours channels]
-  (let [start-location [0 0 0]
-        shapes0 (mk-shapes [] start-location data)
+(defn mk-level [start-location data [start-index end-index] colours channels]
+  (let [shapes0 (mk-shapes [] start-location data)
         shapes1 (round-shapes shapes0)
-        [shapes10 width height] (centre shapes1)
+        [shapes2 width height] (centre shapes1)
         ;colours [[250 175 0] [0 0 250] [0 150 225]]
         ;channels [[250 175 0] [255 125 50]
         ;          [200 225 0]
                   ;]
         start (repeat (count channels) start-index)
         end (repeat (count channels) end-index)
-        shapes2 (add-wires shapes10 (count channels))
-        shapes3 (add-endpoint-wiring shapes2 start-index (count channels))
+        shapes25 (blank-wires shapes2 (count channels))
+        shapes3 (add-endpoint-wiring shapes25 start-index (count channels))
         shapes4 (add-endpoint-wiring shapes3 end-index (count channels))
         shapes5 (add-neighbours shapes4)
         shapes6 (fake shapes5)]
@@ -226,7 +235,23 @@
       4 [3 []]]])
 
 
+(def level-1
+  (-> (mk-level
+        [0 0 (+ TAU_12TH PI)]
+        [6 [4 [0 []
+               4 [0 []
+                  4 [0 []
+                     6 []]]]]]
+        [0 4]
+        [[250 175 0] [0 0 250] [0 150 225]]
+        [[250 175 0]])
+      (wire 1 [[[0 2]]])
+      (wire 2 [[[1 3]]])
+      (wire 3 [[[0 2]]])
+      ))
+
 (def level-2 (mk-level
+               [0 0 0]
                one
                [0 1]
                [[250 175 0] [0 0 250] [0 150 225]]
@@ -235,16 +260,14 @@
                 ]))
 
 
+(def levels {1 level-1
+             2 level-2
+             })
+
+
 (defn load-level [n]
-  level-2)
+  (log (str "asked for level " n))
+  (let [m (inc (mod n (count (keys levels))))]
+    (log (str  "returning " m))
+    (levels m)))
 
-;
-;(log (str level-2))
-
-
-
-;(log (round2 2 123.456))
-
-
-;(defn thing []
-;  (log (mk-shapes [] [100 100 0] one)))

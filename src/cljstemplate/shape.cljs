@@ -386,10 +386,18 @@
 
     (if (every? identity (for [channel-wiring wiring]
                            (some #{:on} (flatten channel-wiring))))
-      (doseq [i (range 1 5)]
-        (fill-circle context [x y (/ radius (- 5 i))] (conj fg (/ 1 i))))
-      (reset! done true)
+
+      (do (doseq [i (range 1 5)]
+            (fill-circle context [x y (/ radius (- 5 i))] (conj fg (/ 1 i))))
+          ;(log (str "DONE FROM SHAPE" wiring))
+          (reset! done true))
       )
+
+    ;(log (str (vec (for [channel-wiring wiring]
+    ;                 (some #{:on} (flatten channel-wiring))))))
+
+    ;(doseq [channel-wiring wiring]
+    ;  (log (str (flatten channel-wiring))))
 
     (doseq [i (range channel-count)]
       (let [angle (* i (/ TAU channel-count))
