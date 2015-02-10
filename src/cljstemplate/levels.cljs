@@ -103,7 +103,8 @@
         max-y (reduce max ys)
         new-shapes (translate shapes (- padding min-x) (- padding min-y))
         ]
-    [new-shapes (- max-x min-x) (- max-y min-y)]))
+    (log (str {:xs xs :min-x min-x :ys ys :min-y min-y :max-x max-x :max-y max-y}))
+    [new-shapes (+ (* 2 padding) (- max-x min-x)) (+ (* 2 padding) (- max-y min-y))]))
 
 (defn add-shape-wires [channel-count shape]
   (assoc shape :wiring (vec (for [i (range channel-count)]
@@ -235,22 +236,124 @@
       4 [3 []]]])
 
 
-(def level-1
+(def orange-blue [[250 175 0] [0 0 250] [0 150 225]])
+(def orange-blue-1 [[250 175 0]])
+
+(def purple-green [[175 0 125] [0 50 0] [0 125 0]])
+(def purple-green-2 [[250 0 150] [150 0 250]])
+
+(def red-yellow [[250 100 100] [100 100 0] [200 200 0]])
+(def red-yellow-3 [[175 50 125] [250 50 50] [175 125 50]])
+
+(def level-1-1
   (-> (mk-level
-        [0 0 (+ TAU_12TH PI)]
-        [6 [4 [0 []
+        [0 0 PI]
+        [4 [4 [0 []
                4 [0 []
                   4 [0 []
-                     6 []]]]]]
-        [0 4]
-        [[250 175 0] [0 0 250] [0 150 225]]
-        [[250 175 0]])
+                     4 [0 []
+                        4 [0 []
+                           4 []]]]]]]]
+        [0 6]
+        orange-blue
+        orange-blue-1)
       (wire 1 [[[0 2]]])
-      (wire 2 [[[1 3]]])
-      (wire 3 [[[0 2]]])
+      (wire 2 [[[0 2]]])
+      (wire 3 [[[1 3]]])
+      (wire 4 [[[0 2]]])
+      (wire 5 [[[0 2]]])
       ))
 
-(def level-2 (mk-level
+(def level-1-2
+  (-> (mk-level
+        [0 0 PI]
+        [4 [4 [0 []
+               4 [0 []
+                  4 [0 []
+                     4 [0 []
+                        4 [0 []
+                           4 []]]]]]]]
+        [0 6]
+        purple-green
+        purple-green-2)
+      (wire 1 [[[0 2]] [[0 2]]])
+      (wire 2 [[[1 3]] [[1 3]]])
+      (wire 3 [[[0 2]] [[0 2]]])
+      (wire 4 [[[1 3]] [[1 3]]])
+      (wire 5 [[[0 2]] [[0 2]]])
+      ))
+
+(def level-1-3
+  (-> (mk-level
+        [0 0 PI]
+        [4 [4 [0 []
+               4 [0 []
+                  4 [0 []
+                     4 [0 []
+                        4 [0 []
+                           4 []]]]]]]]
+        [0 6]
+        red-yellow
+        red-yellow-3)
+      (wire 1 [[[1 3]] [[1 3]] [[1 3]]])
+      (wire 2 [[[0 2]] [[0 2]] [[0 2]]])
+      (wire 3 [[[1 3]] [[1 3]] [[1 3]]])
+      (wire 4 [[[0 2]] [[0 2]] [[0 2]]])
+      (wire 5 [[[1 3]] [[1 3]] [[1 3]]])
+      ))
+
+(def level-2-1
+  (-> (mk-level
+        [0 0 PI]
+        [4 [4 [0 []
+               4 [4 [0 []
+                     4 [4 [0 []
+                           4 []]]]]]]]
+        [0 6]
+        orange-blue
+        orange-blue-1)
+      (wire 1 [[[0 2]]])
+      (wire 2 [[[2 3]]])
+      (wire 3 [[[0 2]]])
+      (wire 4 [[[2 3]]])
+      (wire 5 [[[0 2]]])
+      ))
+
+(def level-2-2
+  (-> (mk-level
+        [0 0 PI]
+        [4 [4 [0 []
+               4 [4 [0 []
+                     4 [4 [0 []
+                           4 []]]]]]]]
+        [0 6]
+        purple-green
+        purple-green-2)
+      (wire 1 [[[0 2]] [[0 2]]])
+      (wire 2 [[[2 3] [0 1]] [[2 3]]])
+      (wire 3 [[[0 2]] [[0 2]]])
+      (wire 4 [[[2 3]] [[0 1] [2 3]]])
+      (wire 5 [[[0 2]] [[0 2]]])
+      ))
+
+(def level-2-3
+  (-> (mk-level
+        [0 0 PI]
+        [4 [4 [0 []
+               4 [4 [0 []
+                     4 [4 [0 []
+                           4 []]]]]]]]
+        [0 6]
+        red-yellow
+        red-yellow-3)
+      (wire 1 [[[0 2]] [[0 2]] [[0 2]]])
+      (wire 2 [[[2 3] [0 1]] [[2 3]] [[2 3]]])
+      (wire 3 [[[1 3]] [[0 2] [1 3]] [[0 2] [1 3]]])
+      (wire 4 [[[2 3]] [[0 1] [2 3]] [[2 3]]])
+      (wire 5 [[[0 2]] [[0 2]] [[0 2]]])
+      ))
+
+(def level-99 (mk-level
                [0 0 0]
                one
                [0 1]
@@ -260,14 +363,18 @@
                 ]))
 
 
-(def levels {1 level-1
-             2 level-2
-             })
+(def levels [level-1-1
+             level-1-2
+             level-1-3
+             level-2-1
+             level-2-2
+             level-2-3
+             ])
+
 
 
 (defn load-level [n]
   (log (str "asked for level " n))
-  (let [m (inc (mod n (count (keys levels))))]
+  (let [m (mod (dec n) (count levels))]
     (log (str  "returning " m))
-    (levels m)))
-
+    (nth levels m)))

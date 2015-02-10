@@ -2,7 +2,7 @@
 
 
 (def config {:core true
-             :shape true
+             :shape false
              :changes true})
 
 (defn logger [log-name]

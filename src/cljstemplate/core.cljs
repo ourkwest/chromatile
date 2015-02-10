@@ -36,11 +36,21 @@
 (defn handle-click [event]
   (let [rect (.getBoundingClientRect (dom/getElement "theCanvas"))]
     (reset! pointer-state {:x (- (.-clientX event) (.-left rect))
-                           :y (- (.-clientY event) (.-top rect))})))
+                           :y (- (.-clientY event) (.-top rect))
+                           :clicked true})))
 
 (let [clicks (listen (dom/getElement "theCanvas") "click")]
   (go (while true
         (handle-click (<! clicks)))))
+
+(defn handle-moves [event]
+  (let [rect (.getBoundingClientRect (dom/getElement "theCanvas"))]
+    (swap! pointer-state merge {:x (- (.-clientX event) (.-left rect))
+                                :y (- (.-clientY event) (.-top rect))})))
+
+(let [moves (listen (dom/getElement "theCanvas") "mousemove")]
+  (go (while true
+        (handle-moves (<! moves)))))
 
 ;;;;;;;;;;
 
@@ -96,12 +106,12 @@
   (clear canvas (first (:colours @this-level)))
   (swap! this-level check-connections)
   (swap! this-level (partial do-rotations timestamp))
-  (let [{x :x y :y} @pointer-state
+  (let [{x :x y :y clicked :clicked} @pointer-state
         was-done @done]
-    (swap! this-level #(render canvas % [x y timestamp] timestamp done))
+    (swap! this-level #(render canvas % [x y clicked timestamp] timestamp done))
     (if (and (not was-done) @done)
       (done-fn)))
-  (reset! pointer-state nil))
+  (swap! pointer-state dissoc :clicked))
 
 (defn animate [timestamp]
   (per-frame-processing timestamp)

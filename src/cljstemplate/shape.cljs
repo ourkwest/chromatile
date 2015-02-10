@@ -12,7 +12,7 @@
 
 (def log (logger :shape))
 
-
+(def debug false)
 
 
 (defn index-of [s v]
@@ -185,7 +185,7 @@
 ;; rendering
 
 
-(defn clicked [shape [_ _ timestamp]]
+(defn clicked [shape [_ _ _ timestamp]]
   ;(log (str "in clicked " (:rotation shape)))
   (if (not-rotating? shape)
     (let [start (:position (:rotation shape))
@@ -194,7 +194,7 @@
           end-time timestamp]
       (merge shape {:rotation {:start start :current start :end end :start-time start-time :end-time end-time}}))
     (let [start (or (:position (:rotation shape)) (:current (:rotation shape)) (:start (:rotation shape)))
-          end (inc (:end (:rotation shape)))
+          end (dec (:end (:rotation shape)))
           start-time timestamp
           end-time (+ (:end-time (:rotation shape)) 250)]
       (merge shape {:rotation {:start start :current start :end end :start-time start-time :end-time end-time}}))))
@@ -222,19 +222,21 @@
                   8 oct-inner-radius})
 
 (defn click-result [shape context click]
-  (if (if-let [[x y] click]
-        (.isPointInPath context x y))
+  (if (if-let [[x y clicked] click]
+        (and clicked (.isPointInPath context x y)))
     (clicked shape click)
     shape))
 
-(defn vertices [{n :n [x y r] :location rotation :rotation}]
+(defn vertices [{n :n [x y r] :location rotation :rotation} sf]
   (let [alpha (alphas n)
         delta (/ alpha 2)
-        radius (radii n)
+        xs (* x sf)
+        ys (* y sf)
+        radius (* (radii n) sf)
         beta (+ r delta (* (or (:current rotation) (:position rotation)) alpha))
         gammas (take n (iterate #(+ % alpha) beta))]
     (for [gamma gammas]
-      [(+ x (* radius (Math.sin gamma))) (+ y (* radius (Math.cos gamma)))])))
+      [(+ xs (* radius (Math.sin gamma))) (+ ys (* radius (Math.cos gamma)))])))
 
 
 (defn trace-path [context [[x1 y1] & rest]]
@@ -245,30 +247,33 @@
   (. context (lineTo x1 y1)))
 
 
-(defn render-shape [context sf click channels [_ bdr fg] {[x y r] :location n :n rotation :rotation wiring :wiring :as shape} id]
+(defn render-shape [context sf [mx my :as mouse] channels [_ bdr fg] {[x y r] :location n :n rotation :rotation wiring :wiring :as shape} id]
   (set! (. context -lineWidth) 1)
-  (set! (. context -lineCap) "round")
+  (set! (. context -lineJoin) "round")
   (let [alpha (alphas n)
         delta (/ alpha 2)
-        radius (radii n)
-        inner-radius (inner-radii n)
+        radius (* (radii n) sf)
+        inner-radius (* (inner-radii n) sf)
         beta (+ r delta (* (or (:current rotation) (:position rotation)) alpha))
         gammas (iterate #(+ % alpha) beta)
         epsilons (iterate #(+ % alpha) (- beta delta))
-        channel-width 5]
+        channel-width (* 5 sf)
+        xs (* x sf)
+        ys (* y sf)]
     (. context (beginPath))
-    (. context (moveTo (+ x (* radius (Math.sin beta))) (+ y (* radius (Math.cos beta)))))
+    (. context (moveTo (+ xs (* radius (Math.sin beta))) (+ ys (* radius (Math.cos beta)))))
     (doseq [gamma (take (dec n) (drop 1 gammas))]
-      (. context (lineTo (+ x (* radius (Math.sin gamma))) (+ y (* radius (Math.cos gamma))))))
+      (. context (lineTo (+ xs (* radius (Math.sin gamma))) (+ ys (* radius (Math.cos gamma))))))
     (. context (closePath))
 
+
     (set! (. context -strokeStyle) (rgb-str bdr))
-    (set! (. context -fillStyle) (rgb-str fg))
+    (set! (. context -fillStyle) (rgba-str (conj fg (if (.isPointInPath context mx my) 0.6 1))))
 
     (. context (fill))
     (. context (stroke))
 
-    (let [result (click-result shape context click)]
+    (let [result (click-result shape context mouse)]
 
       (doseq [ch (range (count channels))]
         (let [channel (nth channels ch)
@@ -280,14 +285,14 @@
                   [onto-x onto-y] [(Math.sin (nth epsilons onto)) (Math.cos (nth epsilons onto))]
                   [from-x-p from-y-p] [(Math.cos (nth epsilons from)) (- (Math.sin (nth epsilons from)))]
                   [onto-x-p onto-y-p] [(Math.cos (nth epsilons onto)) (- (Math.sin (nth epsilons onto)))]]
-              (. context (moveTo (+ x (* inner-radius from-x) (* ch-pos from-x-p))
-                                 (+ y (* inner-radius from-y) (* ch-pos from-y-p))))
-              (. context (lineTo (+ x (* 0.7 inner-radius from-x) (* ch-pos from-x-p))
-                                 (+ y (* 0.7 inner-radius from-y) (* ch-pos from-y-p))))
-              (. context (lineTo (+ x (* 0.7 inner-radius onto-x) (* ch-pos onto-x-p))
-                                 (+ y (* 0.7 inner-radius onto-y) (* ch-pos onto-y-p))))
-              (. context (lineTo (+ x (* inner-radius onto-x) (* ch-pos onto-x-p))
-                                 (+ y (* inner-radius onto-y) (* ch-pos onto-y-p)))))
+              (. context (moveTo (+ xs (* inner-radius from-x) (* ch-pos from-x-p))
+                                 (+ ys (* inner-radius from-y) (* ch-pos from-y-p))))
+              (. context (lineTo (+ xs (* 0.7 inner-radius from-x) (* ch-pos from-x-p))
+                                 (+ ys (* 0.7 inner-radius from-y) (* ch-pos from-y-p))))
+              (. context (lineTo (+ xs (* 0.7 inner-radius onto-x) (* ch-pos onto-x-p))
+                                 (+ ys (* 0.7 inner-radius onto-y) (* ch-pos onto-y-p))))
+              (. context (lineTo (+ xs (* inner-radius onto-x) (* ch-pos onto-x-p))
+                                 (+ ys (* inner-radius onto-y) (* ch-pos onto-y-p)))))
             (if (some #{:on} switched)
               (do
                 (set! (. context -strokeStyle) "rgb(0,0,0)")
@@ -295,33 +300,42 @@
                 (. context (stroke))
                 (set! (. context -strokeStyle) (rgb-str channel))
                 (set! (. context -lineWidth) channel-width)
-                (. context (stroke)))
+                (. context (stroke))
+                (set! (. context -strokeStyle) "rgba(255,255,255, 0.25)")
+                (set! (. context -lineWidth) (/ channel-width 2))
+                (. context (stroke))
+                (set! (. context -strokeStyle) "rgba(255,255,255, 0.15)")
+                (set! (. context -lineWidth) (/ channel-width 6))
+                (. context (stroke))
+                )
               (do
                 (set! (. context -strokeStyle) "rgb(0,0,0)")
                 (set! (. context -lineWidth) (inc (/ channel-width 2)))
                 (. context (stroke))
-                (set! (. context -strokeStyle) (rgba-str (conj channel 0.8)))
+                (set! (. context -strokeStyle) (rgba-str (conj channel 0.75)))
                 (set! (. context -lineWidth) (/ channel-width 2))
                 (. context (stroke))))
             )
           ))
-      (set! (. context -fillStyle) (rgb-str [0 0 0]))
-      (. context (fillText (str id) x y))
+      (if debug (do
+                  (set! (. context -fillStyle) (rgb-str [0 0 0]))
+                  (. context (fillText (str id) xs ys))))
       result)))
 
 
 (defn scale-factor [w h max-w max-h]
-  (min (/ max-w w) (/ max-h h)))
+  (log (str {:w w :h h :mw max-w :mh max-h}))
+  (log (min (/ max-w w) (/ max-h h))))
 
-(defn render-at-rest [context sf click channels colours shape id]
+(defn render-at-rest [context sf mouse channels colours shape id]
   (if (not-rotating? shape)
-    (render-shape context sf click channels colours shape id)
+    (render-shape context sf mouse channels colours shape id)
     shape))
 
-(defn render-in-motion [context sf click channels colours shape id]
+(defn render-in-motion [context sf mouse channels colours shape id]
   ;(log-when-changes :motion (str "Render in motion: " shape))
   (if (rotating? shape)
-    (render-shape context sf click channels colours shape id)
+    (render-shape context sf mouse channels colours shape id)
     shape))
 
 
@@ -342,12 +356,17 @@
     (. surface (stroke))))
 
 
-(defn render-start [{shapes :shapes [start _ _] :start channels :channels :as level} context timestamp [_ bdr fg]]
+(defn render-start [{shapes :shapes [start _ _] :start channels :channels :as level} context timestamp [_ bdr fg] sf]
   (let [shape (nth shapes start)
-        vtxs (vertices shape)
+        vtxs (vertices shape sf)
         {[x y _] :location n :n} shape
-        radius (radii n)
-        many-channels (concat channels  channels)
+        xs (* x sf)
+        ys (* y sf)
+        radius (* (radii n) sf)
+        many-channels (apply concat (repeat (- 4 (count channels)) channels))
+        ;(if (= (count channels) 1)
+        ;                (concat channels channels channels)
+        ;                (concat channels channels))
         channel-count (count many-channels)]
 
     (. context (save))
@@ -355,11 +374,11 @@
     (trace-path context vtxs)
     (. context (clip))
 
-    (fill-circle context [x y radius] [0 0 0 1])
+    (fill-circle context [xs ys radius] [0 0 0 1])
 
     (doseq [i (range channel-count)]
       (let [f (mod (+ (/ timestamp 100) (* i (/ radius channel-count))) radius)]
-        (fill-circle context [x y f] (conj (nth many-channels i) (- 1 (/ f radius))))))
+        (fill-circle context [xs ys f] (conj (nth many-channels i) (- 1 (/ f radius))))))
 
     (trace-path context vtxs)
     (set! (. context -strokeStyle) (rgb-str bdr))
@@ -369,11 +388,17 @@
 
   level)
 
-(defn render-end [{shapes :shapes [end _ _] :end channels :channels :as level} context timestamp [_ bdr fg] done]
+(defn render-end [{shapes :shapes [end _ _] :end channels :channels :as level} context timestamp [_ bdr fg] sf done]
   (let [shape (nth shapes end)
-        vtxs (vertices shape)
+        vtxs (vertices shape sf)
         {[x y _] :location n :n wiring :wiring} shape
-        radius (radii n)
+        xs (* x sf)
+        ys (* y sf)
+        radius (* (radii n) sf)
+        radius_3rd (/ radius 3)
+        radius_5th (/ radius 5)
+        radius_15th (/ radius 15)
+        radius_20th (/ radius 30)
         channel-count (count channels)]
 
     (set! (. context -lineWidth) 5)
@@ -382,16 +407,18 @@
     (trace-path context vtxs)
     (. context (clip))
 
-    (fill-circle context [x y radius] [0 0 0 1])
+    (fill-circle context [xs ys radius] [0 0 0 1])
 
     (if (every? identity (for [channel-wiring wiring]
                            (some #{:on} (flatten channel-wiring))))
 
       (do (doseq [i (range 1 5)]
-            (fill-circle context [x y (/ radius (- 5 i))] (conj fg (/ 1 i))))
+            (fill-circle context [xs ys (/ radius (- 5 i))] (conj fg (/ 1 i))))
           ;(log (str "DONE FROM SHAPE" wiring))
-          (reset! done true))
+          (reset! done true)
+          (render-attention context xs ys radius timestamp))
       )
+
 
     ;(log (str (vec (for [channel-wiring wiring]
     ;                 (some #{:on} (flatten channel-wiring))))))
@@ -400,12 +427,19 @@
     ;  (log (str (flatten channel-wiring))))
 
     (doseq [i (range channel-count)]
-      (let [angle (* i (/ TAU channel-count))
-            xi (+ x (* (/ radius 3) (Math/sin angle)))
-            yi (+ y (* (/ radius 3) (Math/cos angle)))
-            on (some #{:on} (flatten (nth wiring i)))]
-        (fill-circle context [xi yi (/ radius 5)] (conj (nth channels i) (if on 1 0.25)))
-        (stroke-circle context [xi yi (/ radius 5)] (conj (nth channels i) (if on 0.75 0.25)))
+      (let [angle (- (* i (/ TAU channel-count)) (/ timestamp 3000))
+            xi (+ xs (* radius_3rd (Math/sin angle)))
+            yi (+ ys (* radius_3rd (Math/cos angle)))
+            on (some #{:on} (flatten (nth wiring i)))
+            ]
+        ;(log angle)
+        (fill-circle context [xi yi radius_5th] (conj (nth channels i) (if on 1 0.25)))
+        (stroke-circle context [xi yi radius_5th] (conj (nth channels i) (if on 0.75 0.25)))
+        (if on
+          (do
+            (fill-circle context [(- xi radius_15th) (- yi radius_15th) radius_15th] [255 255 255 0.15])
+            (fill-circle context [(- xi radius_15th) (- yi radius_15th) radius_20th] [255 255 255 0.15])
+            ))
         ))
 
     (trace-path context vtxs)
@@ -417,15 +451,50 @@
 
   level)
 
-(defn render [[context width height] level click timestamp done]
+
+
+(defn attention-gradient [context x y radius]
+
+  (let [grd (.createRadialGradient context x y 1 x y radius)]
+    (.addColorStop grd 0 "rgba(250, 250, 250, 1.0")
+    (.addColorStop grd 1 "rgba(250, 250, 250, 0.0")
+    grd)
+
+  ;var grd=ctx.createRadialGradient(75,50,5,90,60,100);
+  ;grd.addColorStop(0,"red");
+  ;grd.addColorStop(1,"white");
+  ;
+  ;// Fill with gradient
+  ;ctx.fillStyle=grd;
+  ;ctx.fillRect(10,10,150,100);
+  ;
+  )
+
+
+(defn render-attention [context x y radius timestamp]
+  (let [gradient (attention-gradient context x y radius)]
+    (set! (. context -fillStyle) gradient)
+    (doseq [i (range 16)]
+      (let [start (- (* i (/ PI 8)) (/ timestamp 3000))
+            end (- start 0.2)]
+        (. context (beginPath))
+        (. context (moveTo x y))
+        (.arc context x y radius start end true)
+        (. context (closePath))
+        (. context fill)))))
+
+(defn render [[context width height] level mouse timestamp done]
   (let [sf (scale-factor (:width level) (:height level) width height)
         channels (:channels level)
         colours (:colours level)]
+    (if @done
+      (render-attention context width height (/ (min width height) 2) timestamp))
     (-> level
-        (update :shapes #(doall (map (partial render-at-rest context sf click channels colours) % (range))))
-        (update :shapes #(doall (map (partial render-in-motion context sf click channels colours) % (range))))
-        (render-start context timestamp colours)
-        (render-end context timestamp colours done))
+        (update :shapes #(doall (map (partial render-at-rest context sf mouse channels colours) % (range))))
+        (update :shapes #(doall (map (partial render-in-motion context sf mouse channels colours) % (range))))
+        (render-start context timestamp colours sf)
+        (render-end context timestamp colours sf done)
+        )
     ;; TODO: transitioning shapes are rendered twice!
     ))
 
