@@ -6,7 +6,8 @@
         [cljstemplate.shapeconstance :only [square-pad square-radius square-inner-radius
                                             hex-pad hex-radius hex-inner-radius
                                             tri-pad tri-radius tri-inner-radius
-                                            oct-pad oct-radius oct-inner-radius]]
+                                            oct-pad oct-radius oct-inner-radius
+                                            shape-side-length]]
         ))
 
 
@@ -27,9 +28,9 @@
     (recur (apply-step location step) (rest steps))
     location))
 
-(defn path-dbg [location & steps]
-  (log (str "Path: " location " -> " (apply path location steps)))
-  (apply path location steps))
+;(defn path-dbg [location & steps]
+;  (log (str "Path: " location " -> " (apply path location steps)))
+;  (apply path location steps))
 
 
 (def pads {3 tri-pad
@@ -57,11 +58,11 @@
         neighbour-shapes (apply concat (for
                                          [i (range neighbour-count)]
                                          (do
-                                           (log (str "i: " i ", a: " (nth neighbour-angles i)))
-                                           (mk-shapes [] (path-dbg [x y r] [0 my-pad] [(nth neighbour-angles i) my-pad]) (nth neighbours-pairs i)))))
+                                           ;(log (str "i: " i ", a: " (nth neighbour-angles i)))
+                                           (mk-shapes [] (path [x y r] [0 my-pad] [(nth neighbour-angles i) my-pad]) (nth neighbours-pairs i)))))
         more-shapes (if rest (mk-shapes [] [x y r] rest) [])
         ]
-    (log (str {:n n :r r :my-angle my-angle :neighbour-angles (take 4 neighbour-angles)}))
+    ;(log (str {:n n :r r :my-angle my-angle :neighbour-angles (take 4 neighbour-angles)}))
     (vec (concat shapes [new-shape] neighbour-shapes more-shapes))))
 
 
@@ -89,7 +90,7 @@
 (defn translate [shapes by-x by-y]
   (mapv (partial translate-each by-x by-y) shapes))
 
-(def padding (* 1.1 oct-radius))
+(def padding (round2 2 (* 1.1 oct-radius)))
 
 (defn centre [shapes]
   (let [xs (map first (map :location shapes))
@@ -128,9 +129,69 @@
   (update-in shapes [shape-id] (partial endpoint-wiring channel-count)))
 
 
+(defn get-sides [shape]
+  (let [{[x y r] :location n :n} shape
+        shape-angle (angles n)
+        radius (pads n)]
+    (for [side-angle (take n (iterate #(+ % shape-angle) r))]
+      (let [side-x (+ x (* radius (Math/sin side-angle)))
+            side-y (+ y (* radius (Math/cos side-angle)))]
+        [side-x side-y shape]))))
+
+(defn close-enough [[x1 y1] [x2 y2]]
+  (let [x-diff (- x2 x1)
+        y-diff (- y2 y1)
+        h2 (+ (* x-diff x-diff) (* y-diff y-diff))
+        limit (/ shape-side-length 3)
+        l2 (* limit limit)]
+    (< h2 l2)))
+
+(defn find-neighbours [shapes [x y shape]]
+  (some identity (for [i (range (count shapes))]
+                   (cond
+                     (= shape (nth shapes i)) nil
+                     (some (partial close-enough [x y]) (get-sides (nth shapes i))) i)))
+  )
+
+(defn add-neighbours [shapes]
+
+  ;; for each shape, for each other shape, if neighbours then add
+
+  (mapv #(assoc % :neighbours (mapv (partial find-neighbours shapes) (get-sides %))) shapes)
+  )
+
+  ;(vec
+  ;  (for [shape shapes]
+
+      ;(let [{[x y r] :location n :n} shape
+      ;      shape-angle (angles n)
+      ;      radius (pads n)]
+
+      ;(assoc shape :neighbours (mapv (partial find-neighbours shapes) (get-sides shape))
+
+                   ;
+                   ;         (vec
+                   ;(for [side-angle (take n (iterate #(+ % shape-angle) r))]
+                   ;
+                   ;  ;(iterate #(+ % my-angle) (+ PI my-angle))
+                   ;
+                   ;  (let [xx (+ x (* radius (Math/sin side-angle)))
+                   ;        yy (+ y (* radius (Math/cos side-angle)))
+                   ;        ])
+
+                   ;; find point on this side of this shape
+                   ;;    filter all other points?
+
+
+
+      ;)))
+
 
 (defn fake [shapes]
-  (mapv #(merge % {:neighbours [nil nil nil nil nil nil] :rotation {:position 0}}) shapes))
+  (mapv #(merge % {
+                   ;:neighbours [nil nil nil nil nil nil]
+                   :rotation {:position 0}}) shapes))
+
 
 (defn mk-level [data]
   (let [start-location [0 0 0]
@@ -144,8 +205,9 @@
         shapes2 (add-wires shapes10 (count channels))
         shapes3 (add-endpoint-wiring shapes2 0 3)
         shapes4 (add-endpoint-wiring shapes3 3 3)
-        shapes5 (fake shapes4)]
-    {:shapes   shapes5
+        shapes5 (add-neighbours shapes4)
+        shapes6 (fake shapes5)]
+    {:shapes   shapes6
      :width    width
      :height   height
      :channels channels

@@ -94,13 +94,15 @@
 
 (defn seeds-from [shapes shape-id from-shape-id channel-id]
   ;(log shape-id)
-  (let [shape (nth shapes shape-id)
-        neighbour-index (index-of (:neighbours shape) from-shape-id)
-        channel-wires (nth (:wiring shape) channel-id)
-        n (:n shape)
-        r (:position (:rotation shape))
-        rotated-neighbour-index (mod (+ neighbour-index r) n)]
-    (mapv #(concat [shape-id channel-id] %) (find-wires rotated-neighbour-index channel-wires))))
+  (let [shape (nth shapes shape-id)]
+    (if (not-rotating? shape)
+      (let [neighbour-index (index-of (:neighbours shape) from-shape-id)
+            channel-wires (nth (:wiring shape) channel-id)
+            n (:n shape)
+            r (:position (:rotation shape))
+            rotated-neighbour-index (mod (+ neighbour-index n (- r)) n)]
+        (mapv #(concat [shape-id channel-id] %) (find-wires rotated-neighbour-index channel-wires)))
+      [])))
 
 (defn more-seeds [shapes shape-id channel-id wire-id direction-id]
   (let [shape (nth shapes shape-id)]
@@ -256,7 +258,7 @@
     (clicked shape click)
     shape))
 
-(defn render-shape [context sf click channels [_ bdr fg] {[x y r] :location n :n rotation :rotation wiring :wiring :as shape}]
+(defn render-shape [context sf click channels [_ bdr fg] {[x y r] :location n :n rotation :rotation wiring :wiring :as shape} id]
   (set! (. context -lineWidth) 1)
   (set! (. context -lineCap) "round")
   (let [alpha (alphas n)
@@ -344,21 +346,24 @@
 
           ))
 
+      (set! (. context -fillStyle) (rgb-str [0 0 0]))
+      (. context (fillText (str id) x y))
+
       result)))
 
 
 (defn scale-factor [w h max-w max-h]
   (min (/ max-w w) (/ max-h h)))
 
-(defn render-at-rest [context sf click channels colours shape]
+(defn render-at-rest [context sf click channels colours shape id]
   (if (not-rotating? shape)
-    (render-shape context sf click channels colours shape)
+    (render-shape context sf click channels colours shape id)
     shape))
 
-(defn render-in-motion [context sf click channels colours shape]
+(defn render-in-motion [context sf click channels colours shape id]
   ;(log-when-changes :motion (str "Render in motion: " shape))
   (if (rotating? shape)
-    (render-shape context sf click channels colours shape)
+    (render-shape context sf click channels colours shape id)
     shape))
 
 
@@ -400,8 +405,8 @@
         channels (:channels level)
         colours (:colours level)]
     (-> level
-        (update :shapes #(doall (map (partial render-at-rest context sf click channels colours) %)))
-        (update :shapes #(doall (map (partial render-in-motion context sf click channels colours) %)))
+        (update :shapes #(doall (map (partial render-at-rest context sf click channels colours) % (range))))
+        (update :shapes #(doall (map (partial render-in-motion context sf click channels colours) % (range))))
         (render-start context timestamp)
         (render-end context timestamp))
     ;; TODO: transitioning shapes are rendered twice!
