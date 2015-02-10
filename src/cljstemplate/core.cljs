@@ -6,13 +6,14 @@
                                             tri-pad tri-radius]]
         [cljstemplate.logging :only [logger log-when-changes]]
         [cljstemplate.shape :only [level-1 render check-connections do-rotations]]
-        [cljstemplate.levels :only [level-2]]
+        [cljstemplate.levels :only [level-2 load-level]]
         )
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [clojure.browser.repl :as repl]
             [goog.dom :as dom]
             [goog.events :as events]
-            [cljs.core.async :refer [put! chan <!]]))
+            [cljs.core.async :refer [put! chan <! close!]])
+  (:import [goog Uri]))
 
 ;; (repl/connect "http://localhost:9000/repl")
 
@@ -174,6 +175,30 @@
 ;;;;;;;;;;
 
 
+(defn load-next []
+
+  (set! (.-location js/window) next-location)
+
+  (log "Load!"))
+
+(let [clicks (listen (dom/getElement "nextButton") "click")]
+  (go (while true
+        (<! clicks)
+        (load-next))))
+
+
+;;;;;;;;;
+
+
+(defn done-fn []
+  (set! (.-visibility (.-style (dom/getElement "nextButton"))) "visible")
+  (log "DONE!"))
+
+(def done (atom false))
+
+;;;;;;;;;
+
+
 
 
 (defn reset-canvas []
@@ -302,10 +327,6 @@
 
 
 
-(log (str "1 ==> " level-1))
-(log (str "2 ==> " level-2))
-
-(def this-level (atom level-2))
 
 
 (defn per-frame-processing [timestamp]
@@ -324,8 +345,13 @@
 
   ;(log-when-changes :level-3 (str @this-level))
 
-  (let [{x :x y :y} @pointer-state]
-    (swap! this-level #(render canvas % [x y timestamp] timestamp)))
+  (let [{x :x y :y} @pointer-state
+        was-done @done]
+    (swap! this-level #(render canvas % [x y timestamp] timestamp done))
+
+    (if (and (not was-done) @done)
+      (done-fn))
+    )
 
   ;(log-when-changes :level-4 (str @this-level))
 
@@ -355,7 +381,22 @@
   (per-frame-processing timestamp)
   (.requestAnimationFrame js/window animate))
 
-(.requestAnimationFrame js/window animate)
 
+(defn start []
+
+  (let [uri (Uri. (.-location js/window))
+        level-str (.getParameterValue uri "level")
+        level (if (and level-str (re-matches #"\d+" level-str))
+                (js/parseInt level-str)
+                1)
+        next-uri (.setParameterValue uri "level" (str (inc level)))]
+
+    (def this-level (atom (load-level level)))
+    (def next-location next-uri)
+    (log (str "Level is: " level)))
+
+  (.requestAnimationFrame js/window animate))
+
+(start)
 
 ;(thing)

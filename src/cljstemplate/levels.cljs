@@ -193,18 +193,20 @@
                    :rotation {:position 0}}) shapes))
 
 
-(defn mk-level [data]
+(defn mk-level [data [start-index end-index] colours channels]
   (let [start-location [0 0 0]
         shapes0 (mk-shapes [] start-location data)
         shapes1 (round-shapes shapes0)
         [shapes10 width height] (centre shapes1)
-        colours [[250 175 0] [0 0 250] [0 150 225]]
-        channels [[250 175 0] [255 125 50] [200 225 0]]
-        start [0 0 0]
-        end [3 3 3]
+        ;colours [[250 175 0] [0 0 250] [0 150 225]]
+        ;channels [[250 175 0] [255 125 50]
+        ;          [200 225 0]
+                  ;]
+        start (repeat (count channels) start-index)
+        end (repeat (count channels) end-index)
         shapes2 (add-wires shapes10 (count channels))
-        shapes3 (add-endpoint-wiring shapes2 0 3)
-        shapes4 (add-endpoint-wiring shapes3 3 3)
+        shapes3 (add-endpoint-wiring shapes2 start-index (count channels))
+        shapes4 (add-endpoint-wiring shapes3 end-index (count channels))
         shapes5 (add-neighbours shapes4)
         shapes6 (fake shapes5)]
     {:shapes   shapes6
@@ -224,7 +226,18 @@
       4 [3 []]]])
 
 
-(def level-2 (mk-level one))
+(def level-2 (mk-level
+               one
+               [0 1]
+               [[250 175 0] [0 0 250] [0 150 225]]
+               [[250 175 0] [255 125 50]
+                ;[200 225 0]
+                ]))
+
+
+(defn load-level [n]
+  level-2)
+
 ;
 ;(log (str level-2))
 

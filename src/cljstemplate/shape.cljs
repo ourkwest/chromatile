@@ -5,7 +5,8 @@
         [cljstemplate.shapeconstance :only [square-pad square-radius square-inner-radius
                                             hex-pad hex-radius hex-inner-radius
                                             tri-pad tri-radius tri-inner-radius
-                                            oct-pad oct-radius oct-inner-radius]]))
+                                            oct-pad oct-radius oct-inner-radius]])
+  (:require [cljs.core.async :refer [put! close!]]))
 
 
 
@@ -199,44 +200,12 @@
       (merge shape {:rotation {:start start :current start :end end :start-time start-time :end-time end-time}}))))
 
 
-;; TODO: these are in the wrong place!
-(def shape-fill "rgba(0, 150, 225, 1.0)")
-(def shape-stroke "rgb(0, 0, 250)")
 
 (defn rgb-str [[r g b]]
   (str "rgb(" r "," g "," b ")"))
 (defn rgba-str [[r g b a]]
   (str "rgba(" r "," g "," b "," a ")"))
 
-
-(defn render-resting-shape "TODO!!!!!!" [context sf click {[x y r] :location n :n {position :position} :rotation :as shape}]
-  (set! (. context -strokeStyle) (str shape-stroke))
-  (set! (. context -fillStyle) (str shape-fill))
-  (let [theta1 (+ r (* position TAU_6TH))
-        theta2 (+ theta1 TAU_6TH)
-        theta3 (+ theta2 TAU_6TH)
-        theta4 (+ theta3 TAU_6TH)
-        theta5 (+ theta4 TAU_6TH)
-        theta6 (+ theta5 TAU_6TH)
-        radius hex-radius]
-    (. context (beginPath))
-    (. context (moveTo (+ x (* radius (Math.sin theta1))) (+ y (* radius (Math.cos theta1)))))
-    (. context (lineTo (+ x (* radius (Math.sin theta2))) (+ y (* radius (Math.cos theta2)))))
-    (. context (lineTo (+ x (* radius (Math.sin theta3))) (+ y (* radius (Math.cos theta3)))))
-    (. context (lineTo (+ x (* radius (Math.sin theta4))) (+ y (* radius (Math.cos theta4)))))
-    (. context (lineTo (+ x (* radius (Math.sin theta5))) (+ y (* radius (Math.cos theta5)))))
-    (. context (lineTo (+ x (* radius (Math.sin theta6))) (+ y (* radius (Math.cos theta6)))))
-    (. context (closePath))
-    ;(if (.isPointInPath context (:x @pointer-state) (:y @pointer-state))
-    ;  (.fill context))
-    (. context (fill))
-    (. context (stroke))
-    )
-  ;(log "render-resting-shape")
-  (if (if-let [[x y] click]
-        (.isPointInPath context x y))
-    (clicked shape click)
-    shape))
 
 
 (def alphas {3 TAU_3RD
@@ -258,6 +227,24 @@
     (clicked shape click)
     shape))
 
+(defn vertices [{n :n [x y r] :location rotation :rotation}]
+  (let [alpha (alphas n)
+        delta (/ alpha 2)
+        radius (radii n)
+        beta (+ r delta (* (or (:current rotation) (:position rotation)) alpha))
+        gammas (take n (iterate #(+ % alpha) beta))]
+    (for [gamma gammas]
+      [(+ x (* radius (Math.sin gamma))) (+ y (* radius (Math.cos gamma)))])))
+
+
+(defn trace-path [context [[x1 y1] & rest]]
+  (. context (beginPath))
+  (. context (moveTo x1 y1))
+  (doseq [[xr yr] rest]
+    (. context (lineTo xr yr)))
+  (. context (lineTo x1 y1)))
+
+
 (defn render-shape [context sf click channels [_ bdr fg] {[x y r] :location n :n rotation :rotation wiring :wiring :as shape} id]
   (set! (. context -lineWidth) 1)
   (set! (. context -lineCap) "round")
@@ -267,7 +254,8 @@
         inner-radius (inner-radii n)
         beta (+ r delta (* (or (:current rotation) (:position rotation)) alpha))
         gammas (iterate #(+ % alpha) beta)
-        epsilons (iterate #(+ % alpha) (- beta delta))]
+        epsilons (iterate #(+ % alpha) (- beta delta))
+        channel-width 5]
     (. context (beginPath))
     (. context (moveTo (+ x (* radius (Math.sin beta))) (+ y (* radius (Math.cos beta)))))
     (doseq [gamma (take (dec n) (drop 1 gammas))]
@@ -279,28 +267,19 @@
 
     (. context (fill))
     (. context (stroke))
+
     (let [result (click-result shape context click)]
 
       (doseq [ch (range (count channels))]
         (let [channel (nth channels ch)
               channel-wiring (nth wiring ch)
-              ch-pos (* (- ch (/ (dec (count channels)) 2)) 10)]   ;TODO '10' is magic
-
-          ;(log (str "'" channel "' : " channel-wiring))
-
-
+              ch-pos (* (- ch (/ (dec (count channels)) 2)) channel-width)]
           (doseq [[from onto switched] channel-wiring]
-
-            ;(log (. context -strokeStyle))
-            ;(set! (. context -strokeStyle) (if (some #{:on} switched) "red" channel))
             (. context (beginPath))
-
             (let [[from-x from-y] [(Math.sin (nth epsilons from)) (Math.cos (nth epsilons from))]
                   [onto-x onto-y] [(Math.sin (nth epsilons onto)) (Math.cos (nth epsilons onto))]
                   [from-x-p from-y-p] [(Math.cos (nth epsilons from)) (- (Math.sin (nth epsilons from)))]
-                  [onto-x-p onto-y-p] [(Math.cos (nth epsilons onto)) (- (Math.sin (nth epsilons onto)))]
-                  ]
-
+                  [onto-x-p onto-y-p] [(Math.cos (nth epsilons onto)) (- (Math.sin (nth epsilons onto)))]]
               (. context (moveTo (+ x (* inner-radius from-x) (* ch-pos from-x-p))
                                  (+ y (* inner-radius from-y) (* ch-pos from-y-p))))
               (. context (lineTo (+ x (* 0.7 inner-radius from-x) (* ch-pos from-x-p))
@@ -308,47 +287,26 @@
               (. context (lineTo (+ x (* 0.7 inner-radius onto-x) (* ch-pos onto-x-p))
                                  (+ y (* 0.7 inner-radius onto-y) (* ch-pos onto-y-p))))
               (. context (lineTo (+ x (* inner-radius onto-x) (* ch-pos onto-x-p))
-                                 (+ y (* inner-radius onto-y) (* ch-pos onto-y-p))))
-              )
-            ;(. context (closePath))
-
+                                 (+ y (* inner-radius onto-y) (* ch-pos onto-y-p)))))
             (if (some #{:on} switched)
               (do
                 (set! (. context -strokeStyle) "rgb(0,0,0)")
-                (set! (. context -lineWidth) 6)
+                (set! (. context -lineWidth) (inc channel-width))
                 (. context (stroke))
                 (set! (. context -strokeStyle) (rgb-str channel))
-                (set! (. context -lineWidth) 5)
+                (set! (. context -lineWidth) channel-width)
                 (. context (stroke)))
               (do
                 (set! (. context -strokeStyle) "rgb(0,0,0)")
-                (set! (. context -lineWidth) 4)
+                (set! (. context -lineWidth) (inc (/ channel-width 2)))
                 (. context (stroke))
                 (set! (. context -strokeStyle) (rgba-str (conj channel 0.8)))
-                (set! (. context -lineWidth) 3)
-                (. context (stroke)))
-              )
-
-            ;(set! (. context -strokeStyle) "black")
-            ;(set! (. context -strokeStyle) "rgb(0,0,0)")
-            ;(set! (. context -lineWidth) 6)
-            ;(. context (stroke))
-            ;
-            ;(set! (. context -strokeStyle) (if (some #{:on} switched)
-            ;                                 (rgb-str channel)
-            ;                                 (rgba-str (conj channel 0.75))))
-            ;(set! (. context -lineWidth) (if (some #{:on} switched)
-            ;                               5
-            ;                               3))
-            ;(. context (stroke))
-
+                (set! (. context -lineWidth) (/ channel-width 2))
+                (. context (stroke))))
             )
-
           ))
-
       (set! (. context -fillStyle) (rgb-str [0 0 0]))
       (. context (fillText (str id) x y))
-
       result)))
 
 
@@ -367,48 +325,99 @@
     shape))
 
 
-(defn fill-circle [surface coords [r g b a]]
+(defn fill-circle [surface coords colour]
   (let [[x y d] coords]
-    (set! (. surface -fillStyle) (str "rgba(" r "," g "," b "," a ")"))
+    (set! (. surface -fillStyle) (rgba-str colour))
     (. surface (beginPath))
     (.arc surface x y d 0 (* 2 Math/PI) true)
     (. surface (closePath))
     (. surface (fill))))
 
+(defn stroke-circle [surface coords colour]
+  (let [[x y d] coords]
+    (set! (. surface -strokeStyle) (rgba-str colour))
+    (. surface (beginPath))
+    (.arc surface x y d 0 (* 2 Math/PI) true)
+    (. surface (closePath))
+    (. surface (stroke))))
 
-(defn render-start [{shapes :shapes [start _ _] :start [ch1 ch2 ch3] :channels :as level} context timestamp]
-  (let [{[x y _] :location} (nth shapes start)
-        f1 (+ 0.5 (/ (Math/sin (+ (/ timestamp 1000) 0)) 2))
-        f2 (+ 0.5 (/ (Math/sin (+ (/ timestamp 1000) 1.5)) 2))
-        f3 (+ 0.5 (/ (Math/sin (+ (/ timestamp 1000) 3)) 2))
-        ]
-    (fill-circle context [x y 21] [0 0 0 1])
-    (fill-circle context [x y 20] (conj ch1 f1))
-    (fill-circle context [x y 15] (conj ch2 f2))
-    (fill-circle context [x y 10] (conj ch3 f3)))
+
+(defn render-start [{shapes :shapes [start _ _] :start channels :channels :as level} context timestamp [_ bdr fg]]
+  (let [shape (nth shapes start)
+        vtxs (vertices shape)
+        {[x y _] :location n :n} shape
+        radius (radii n)
+        many-channels (concat channels  channels)
+        channel-count (count many-channels)]
+
+    (. context (save))
+
+    (trace-path context vtxs)
+    (. context (clip))
+
+    (fill-circle context [x y radius] [0 0 0 1])
+
+    (doseq [i (range channel-count)]
+      (let [f (mod (+ (/ timestamp 100) (* i (/ radius channel-count))) radius)]
+        (fill-circle context [x y f] (conj (nth many-channels i) (- 1 (/ f radius))))))
+
+    (trace-path context vtxs)
+    (set! (. context -strokeStyle) (rgb-str bdr))
+    (set! (. context -lineWidth) 1)
+    (. context (stroke))
+    (. context (restore)))
+
   level)
 
-(defn render-end [{shapes :shapes [end _ _] :end [ch1 ch2 ch3] :channels :as level} context timestamp]
-  (let [{[x y _] :location} (nth shapes end)
-        f1 (+ 0.5 (/ (Math/sin (- (/ timestamp 1000) 0)) 2))
-        f2 (+ 0.5 (/ (Math/sin (- (/ timestamp 1000) 1.5)) 2))
-        f3 (+ 0.5 (/ (Math/sin (- (/ timestamp 1000) 3)) 2))
-        ]
-    (fill-circle context [x y 21] [0 0 0 1])
-    (fill-circle context [x y 20] (conj ch1 f1))
-    (fill-circle context [x y 15] (conj ch2 f2))
-    (fill-circle context [x y 10] (conj ch3 f3)))
+(defn render-end [{shapes :shapes [end _ _] :end channels :channels :as level} context timestamp [_ bdr fg] done]
+  (let [shape (nth shapes end)
+        vtxs (vertices shape)
+        {[x y _] :location n :n wiring :wiring} shape
+        radius (radii n)
+        channel-count (count channels)]
+
+    (set! (. context -lineWidth) 5)
+    (. context (save))
+
+    (trace-path context vtxs)
+    (. context (clip))
+
+    (fill-circle context [x y radius] [0 0 0 1])
+
+    (if (every? identity (for [channel-wiring wiring]
+                           (some #{:on} (flatten channel-wiring))))
+      (doseq [i (range 1 5)]
+        (fill-circle context [x y (/ radius (- 5 i))] (conj fg (/ 1 i))))
+      (reset! done true)
+      )
+
+    (doseq [i (range channel-count)]
+      (let [angle (* i (/ TAU channel-count))
+            xi (+ x (* (/ radius 3) (Math/sin angle)))
+            yi (+ y (* (/ radius 3) (Math/cos angle)))
+            on (some #{:on} (flatten (nth wiring i)))]
+        (fill-circle context [xi yi (/ radius 5)] (conj (nth channels i) (if on 1 0.25)))
+        (stroke-circle context [xi yi (/ radius 5)] (conj (nth channels i) (if on 0.75 0.25)))
+        ))
+
+    (trace-path context vtxs)
+    (set! (. context -strokeStyle) (rgb-str bdr))
+    (set! (. context -lineWidth) 1)
+    (. context (stroke))
+
+    (. context (restore)))
+
   level)
 
-(defn render [[context width height] level click timestamp]
+(defn render [[context width height] level click timestamp done]
   (let [sf (scale-factor (:width level) (:height level) width height)
         channels (:channels level)
         colours (:colours level)]
     (-> level
         (update :shapes #(doall (map (partial render-at-rest context sf click channels colours) % (range))))
         (update :shapes #(doall (map (partial render-in-motion context sf click channels colours) % (range))))
-        (render-start context timestamp)
-        (render-end context timestamp))
+        (render-start context timestamp colours)
+        (render-end context timestamp colours done))
     ;; TODO: transitioning shapes are rendered twice!
     ))
 
