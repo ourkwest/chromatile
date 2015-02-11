@@ -12,7 +12,7 @@
 
 (def log (logger :shape))
 
-(def debug false)
+(def debug true)
 
 
 (defn index-of [s v]
@@ -285,17 +285,25 @@
                   [onto-x onto-y] [(Math.sin (nth epsilons onto)) (Math.cos (nth epsilons onto))]
                   [from-x-p from-y-p] [(Math.cos (nth epsilons from)) (- (Math.sin (nth epsilons from)))]
                   [onto-x-p onto-y-p] [(Math.cos (nth epsilons onto)) (- (Math.sin (nth epsilons onto)))]]
-              (. context (moveTo (+ xs (* inner-radius from-x) (* ch-pos from-x-p))
-                                 (+ ys (* inner-radius from-y) (* ch-pos from-y-p))))
+              (. context (moveTo (+ xs (* inner-radius from-x)
+                                    (* ch-pos from-x-p)
+                                    )
+                                 (+ ys (* inner-radius from-y)
+                                    (* ch-pos from-y-p)
+                                    )))
               (. context (lineTo (+ xs (* 0.7 inner-radius from-x) (* ch-pos from-x-p))
                                  (+ ys (* 0.7 inner-radius from-y) (* ch-pos from-y-p))))
               (. context (lineTo (+ xs (* 0.7 inner-radius onto-x) (* ch-pos onto-x-p))
                                  (+ ys (* 0.7 inner-radius onto-y) (* ch-pos onto-y-p))))
-              (. context (lineTo (+ xs (* inner-radius onto-x) (* ch-pos onto-x-p))
-                                 (+ ys (* inner-radius onto-y) (* ch-pos onto-y-p)))))
+              (. context (lineTo (+ xs (* inner-radius onto-x)
+                                    (* ch-pos onto-x-p)
+                                    )
+                                 (+ ys (* inner-radius onto-y)
+                                    (* ch-pos onto-y-p)
+                                    ))))
             (if (some #{:on} switched)
               (do
-                (set! (. context -strokeStyle) "rgb(0,0,0)")
+                (set! (. context -strokeStyle) "rgb(255,255,255)")
                 (set! (. context -lineWidth) (inc channel-width))
                 (. context (stroke))
                 (set! (. context -strokeStyle) (rgb-str channel))
@@ -318,8 +326,11 @@
             )
           ))
       (if debug (do
+                  (set! (. context -fillStyle) (rgb-str [250 250 250]))
+                  (. context (fillRect (- xs 5) (- ys 10) 15 15))
                   (set! (. context -fillStyle) (rgb-str [0 0 0]))
-                  (. context (fillText (str id) xs ys))))
+                  (. context (fillText (str id) xs ys))
+                  ))
       result)))
 
 
