@@ -28,10 +28,6 @@
     (recur (apply-step location step) (rest steps))
     location))
 
-;(defn path-dbg [location & steps]
-;  (log (str "Path: " location " -> " (apply path location steps)))
-;  (apply path location steps))
-
 
 (def pads {3 tri-pad
            4 square-pad
@@ -128,15 +124,21 @@
 
 
 
-(defn endpoint-wiring [channel-count shape]
+(defn endpoint-wiring [channel-count direction shape]
   (assoc shape :wiring (vec (for [i (range channel-count)]
                               (vec (for [j (range (:n shape))]
-                                     [j (mod (inc j) (:n shape))]))
+
+                                     (if (= direction 1)
+                                       [j (:n shape)]
+                                       [(:n shape) j])
+
+                                     ;[j (mod (inc j) (:n shape))]
+                                     ))
                               ))))
 
 
-(defn add-endpoint-wiring [shapes shape-id channel-count]
-  (update-in shapes [shape-id] (partial endpoint-wiring channel-count)))
+(defn add-endpoint-wiring [shapes shape-id channel-count direction]
+  (update-in shapes [shape-id] (partial endpoint-wiring channel-count direction)))
 
 
 (defn get-sides [shape]
@@ -160,41 +162,10 @@
   (some identity (for [i (range (count shapes))]
                    (cond
                      (= shape (nth shapes i)) nil
-                     (some (partial close-enough [x y]) (get-sides (nth shapes i))) i)))
-  )
+                     (some (partial close-enough [x y]) (get-sides (nth shapes i))) i))))
 
 (defn add-neighbours [shapes]
-
-  ;; for each shape, for each other shape, if neighbours then add
-
-  (mapv #(assoc % :neighbours (mapv (partial find-neighbours shapes) (get-sides %))) shapes)
-  )
-
-  ;(vec
-  ;  (for [shape shapes]
-
-      ;(let [{[x y r] :location n :n} shape
-      ;      shape-angle (angles n)
-      ;      radius (pads n)]
-
-      ;(assoc shape :neighbours (mapv (partial find-neighbours shapes) (get-sides shape))
-
-                   ;
-                   ;         (vec
-                   ;(for [side-angle (take n (iterate #(+ % shape-angle) r))]
-                   ;
-                   ;  ;(iterate #(+ % my-angle) (+ PI my-angle))
-                   ;
-                   ;  (let [xx (+ x (* radius (Math/sin side-angle)))
-                   ;        yy (+ y (* radius (Math/cos side-angle)))
-                   ;        ])
-
-                   ;; find point on this side of this shape
-                   ;;    filter all other points?
-
-
-
-      ;)))
+  (mapv #(assoc % :neighbours (mapv (partial find-neighbours shapes) (get-sides %))) shapes))
 
 
 (defn wire [level shape-id wiring]
@@ -203,22 +174,23 @@
 (defn shuffle [shapes]
   (mapv #(merge % {:rotation {:position (rand-int (:n %))}}) shapes))
 
+(defn un-shuffle [shapes]
+  (mapv #(merge % {:rotation {:position 0}}) shapes))
+
+(defn shuffle-shapes [level]
+  (update level :shapes shuffle))
 
 (defn mk-level [start-location data [start-index end-index] colours channels]
   (let [shapes0 (mk-shapes [] start-location data)
         shapes1 (round-shapes shapes0)
         [shapes2 width height] (centre shapes1)
-        ;colours [[250 175 0] [0 0 250] [0 150 225]]
-        ;channels [[250 175 0] [255 125 50]
-        ;          [200 225 0]
-                  ;]
         start (repeat (count channels) start-index)
         end (repeat (count channels) end-index)
         shapes25 (blank-wires shapes2 (count channels))
-        shapes3 (add-endpoint-wiring shapes25 start-index (count channels))
-        shapes4 (add-endpoint-wiring shapes3 end-index (count channels))
+        shapes3 (add-endpoint-wiring shapes25 start-index (count channels) 0)
+        shapes4 (add-endpoint-wiring shapes3 end-index (count channels) 1)
         shapes5 (add-neighbours shapes4)
-        shapes6 (shuffle shapes5)]
+        shapes6 (un-shuffle shapes5)]
     {:shapes   shapes6
      :width    width
      :height   height
@@ -239,14 +211,10 @@
     nil))
 
 (defn add-distance-to-end [shapes distance ends]
-
-  ;; map : if shape has any end as neighbour set min dte
-  ;; filter identity map : if shape has any end as neighbour and dte == distance -> recur
-
   (let [new-shapes (mapv (partial add-distance distance ends) shapes)
         new-ends (into #{} (filter identity (map (partial has-distance distance ends) new-shapes (range))))
         new-distance (inc distance)]
-    (log (str {:new-ends new-ends :new-distance new-distance} ))
+    ;(log (str {:new-ends new-ends :new-distance new-distance} ))
     (if (and (seq ends) (< distance 20))
       (recur new-shapes new-distance new-ends)
       new-shapes)))
@@ -280,26 +248,40 @@
           new-shapes (update-in shapes [here-id :wiring channel-id] conj wire)]
       (recur neighbour-id here-id end-id (inc travelled) new-shapes channel-id))))
 
-(defn wire-paths [{[start] :start [end] :end shapes :shapes channels :channels :as level}]
 
+(defn merge-spam [shape [channel from onto]]
+  (log (str "SPAM: " channel " " from " " onto))
+  (update-in shape [:wiring channel] conj [from onto]))
+
+(defn de-dupe-channel-spam [channel-wiring]
+  (into [] (into #{} channel-wiring)))
+
+(defn de-dupe-spam [shape]
+  (update-in shape [:wiring] #(mapv de-dupe-channel-spam %)))
+
+(defn spam-each [{wiring :wiring n :n :as shape}]
+  (let [total-wires (/ (count (flatten wiring)) 2)
+        target-wires (+ 1 (rand-int n))
+        channel-count (count wiring)]
+    (de-dupe-spam
+      (reduce merge-spam
+              shape
+              (for [i (range total-wires target-wires)]
+                (let [a (rand-int n)
+                      b (rand-int n)]
+                  (if (= a b)
+                    [(rand-int channel-count) (mod (inc a) n) b]
+                    [(rand-int channel-count) a b])))))))
+
+(defn spam [shapes]
+  (mapv spam-each shapes))
+
+(defn wire-paths [{[start] :start [end] :end shapes :shapes channels :channels :as level}]
   (let [shapes0 (add-distance-to-end shapes 0 #{end})
         first-id (some identity (:neighbours (shapes start)))
-        shapes1 (reduce (partial add-path-to-end first-id start end 0) shapes0 (range (count channels)))]
-
-    (assoc level :shapes shapes1)
-
-    )
-
-  )
-
-
-(def one
-  [6 [4 [3 [] 8 []]
-      4 [3 []]
-      4 [3 [] 6 []]
-      4 [3 [] 6 []]
-      4 [3 [] 6 []]
-      4 [3 []]]])
+        shapes1 (reduce (partial add-path-to-end first-id start end 0) shapes0 (range (count channels)))
+        shapes2 (spam shapes1)]
+    (assoc level :shapes shapes2)))
 
 
 (def orange-blue [[250 175 0] [0 0 250] [0 150 225]])
@@ -308,182 +290,200 @@
 (def orange-blue-1 (butlast orange-blue-2))
 
 (def purple-green [[175 0 125] [0 50 0] [100 200 100]])
-(def purple-green-3 [[250 0 0] [100 0 200] [200 100 0]])
-(def purple-green-2 (butlast purple-green-3))
-(def purple-green-1 (butlast purple-green-2))
+(def purple-green-3 [[250 0 0] [0 0 250] [200 200 0]])
 
 (def red-white [[250 50 50] [150 0 0] [250 250 250]])
 (def red-white-3 [[200 50 150] [255 0 0] [255 125 125]])
-(def red-white-2 (butlast red-white-3))
-(def red-white-1 (butlast red-white-2))
 
 (def black-cmy [[200 200 200] [255 255 255] [0 0 0]])
 (def black-cmy-3 [[250 250 0] [250 0 250] [0 250 250]])
-(def black-cmy-2 (butlast black-cmy-3))
-(def black-cmy-1 (butlast black-cmy-2))
 
 (def white-rgb [[0 0 0] [125 125 125] [250 250 250]])
 (def white-rgb-3 [[250 0 0] [0 250 0] [0 0 250]])
-(def white-rgb-2 (butlast white-rgb-3))
-(def white-rgb-1 (butlast white-rgb-2))
+
+(def all-colours
+  [[orange-blue orange-blue-3]
+   [purple-green purple-green-3]
+   ;[red-white red-white-3] can't make this look good!
+   [black-cmy black-cmy-3]
+   [white-rgb white-rgb-3]])
 
 
 
-(def layout-1
-  [4 [4 [0 []
-         4 [4 [0 []
-               4 [0 []
-                  0 []
-                  4 []]]
-            4 [4 []
-               4 [4 [0 []
+(def tutorial-levels
+  [(-> (mk-level
+         [0 0 PI]
+         [4 [4 [0 []
+                4 [0 []
+                   4 [0 []
+                      4 [0 []
+                         4 [0 []
+                            4 []]]]]]]]
+         [0 6]
+         orange-blue
+         orange-blue-1)
+       (wire 1 [[[0 2]]])
+       (wire 2 [[[0 2]]])
+       (wire 3 [[[1 3]]])
+       (wire 4 [[[0 2]]])
+       (wire 5 [[[0 2]]])
+       )
+   (-> (mk-level
+         [0 0 PI]
+         [4 [4 [0 []
+                4 [4 [0 []
+                      0 []
+                      4 []]
+                   4 [0 []
+                      4 [4 [0 []
+                            0 []
+                            4 [0 []
+                               4 []]]]]]]]]
+         [0 9]
+         orange-blue
+         orange-blue-2)
+       (wire 1 [[[0 2]] [[0 2]]])
+       (wire 2 [[[1 0]] [[0 2]]])
+       (wire 3 [[[0 3]] []])
+       (wire 4 [[[1 3]] []])
+       (wire 5 [[]      [[1 3]]])
+       (wire 6 [[] [[0 1]]])
+       (wire 7 [[[3 1]] [[0 3]]])
+       (wire 8 [[[0 2]] [[0 2]]])
+       )
+   (-> (mk-level
+         [0 0 PI]
+         [4 [4 [0 []
+                4 [4 [0 []
+                      4 [0 []
+                         0 []
+                         4 []]]
+                   4 [4 []
+                      4 [4 [0 []
+                            4 [0 []
+                               0 []
+                               4 [0 []
+                                  4 []]]]]]]]]]
+         [0 12]
+         orange-blue
+         orange-blue-3)
+       (wire 1 [[[0 2]] [[0 2]] [[0 2]]])
+       (wire 2 [[[0 1]] [[0 1]] [[0 2]]])
+       (wire 3 [[[0 2]] [[0 3]] [     ]])
+       (wire 4 [[[0 3]] [     ] [     ]])
+       (wire 5 [[[1 3]] [     ] [     ]])
+       (wire 6 [[     ] [     ] [[1 3]]])
+       (wire 7 [[     ] [[0 2]] [     ]])
+       (wire 8 [[     ] [     ] [[0 1]]])
+       (wire 9 [[     ] [[1 2]] [[0 2]]])
+       (wire 10 [[[1 3]] [[0 3]] [[0 3]]])
+       (wire 11 [[[0 2]] [[0 2]] [[0 2]]])
+       )])
+
+
+(def unfinished-levels
+    [
+     (partial mk-level
+              [0 0 PI]
+              [4 [4 [0 []
                      4 [0 []
                         0 []
                         4 [0 []
-                           4 []]]]]]]]]])
-
-
-(def level-1-1
-  (-> (mk-level
-        [0 0 PI]
-        [4 [4 [0 []
-               4 [0 []
-                  4 [0 []
+                           4 []]]
                      4 [0 []
-                        4 [0 []
-                           4 []]]]]]]]
-        [0 6]
-        orange-blue
-        orange-blue-1)
-      (wire 1 [[[0 2]]])
-      (wire 2 [[[0 2]]])
-      (wire 3 [[[1 3]]])
-      (wire 4 [[[0 2]]])
-      (wire 5 [[[0 2]]])
-      ))
-
-(def level-1-2
-  (-> (mk-level
-        [0 0 PI]
-        [4 [4 [0 []
-               4 [4 [0 []
-                     0 []
-                     4 []]
-                  4 [0 []
-                     4 [4 [0 []
-                           0 []
-                           4 [0 []
-                              4 []]]]]]]]]
-        [0 9]
-        orange-blue
-        orange-blue-2)
-      (wire 1 [[[0 2]] [[0 2]]])
-      (wire 2 [[[1 0]] [[0 2]]])
-      (wire 3 [[[0 3]] []])
-      (wire 4 [[[1 3]] []])
-      (wire 5 [[]      [[1 3]]])
-      (wire 6 [[] [[0 1]]])
-      (wire 7 [[[3 1]] [[0 3]]])
-      (wire 8 [[[0 2]] [[0 2]]])
-      ))
-
-(def level-1-3
-  (-> (mk-level
-        [0 0 PI]
-        [4 [4 [0 []
-               4 [4 [0 []
-                     4 [0 []
-                        0 []
                         4 []]]
-                  4 [4 []
-                     4 [4 [0 []
-                           4 [0 []
+                  4 [0 []
+                     4 []]]]
+              [8 2])
+     (partial mk-level
+              [0 0 PI]
+              [6 [6 []
+                  6 [0 []
+                     6 []
+                     6 [0 []
+                        6 []]
+                     6 []]
+                  6 []
+                  6 []]]
+              [8 5])
+     (partial mk-level
+              [0 0 PI]
+              [6 [3 []
+                  3 [6 [0 []
+                        0 []
+                        3 [0 []
+                           6 [0 []
                               0 []
+                              6 []]]
+                        3 []]]
+                  6 [3 []
+                     3 [6 [0 []
+                           0 []
+                           3 [0 []
+                              6 []]
+                           3 []]]]
+                  6 []]]
+              [15 6])
+     (partial mk-level
+              [0 0 PI]
+              [6 [4 [0 []
+                     6 [0 []
+                        0 []
+                        0 []
+                        4 [0 []
+                           6 [0 []
+                              0 []
+                              0 []
+                              4 []]]]]
+                  4 [0 []
+                     6 [4 [3 []]
+                        4 [3 []]
+                        4 [3 []]
+                        4 [3 []]
+                        4 [3 []]]
+                     3 []]
+                  4 [0 []
+                     6 [0 []
+                        4 [0 []
+                           6 [0 []
                               4 [0 []
-                                 4 []]]]]]]]]]
-        [0 12]
-        orange-blue
-        orange-blue-3)
-      (wire 1 [[[0 2]] [[0 2]] [[0 2]]])
-      (wire 2 [[[0 1]] [[0 1]] [[0 2]]])
-      (wire 3 [[[0 2]] [[0 3]] [     ]])
-      (wire 4 [[[0 3]] [     ] [     ]])
-      (wire 5 [[[1 3]] [     ] [     ]])
-      (wire 6 [[     ] [     ] [[1 3]]])
-      (wire 7 [[     ] [[0 2]] [     ]])
-      (wire 8 [[     ] [     ] [[0 1]]])
-      (wire 9 [[     ] [[1 2]] [[0 2]]])
-      (wire 10 [[[1 3]] [[0 3]] [[0 3]]])
-      (wire 11 [[[0 2]] [[0 2]] [[0 2]]])
-      ))
-
-
-(def level-2-1
-  (-> (mk-level
-        [0 0 PI]
-        layout-1
-        [0 12]
-        orange-blue
-        orange-blue-3)
-      (wire-paths)
-      ))
-
-(def level-2-2
-  (-> (mk-level
-        [0 0 PI]
-        [4 [4 [0 []
-               4 [4 [0 []
-                     4 [4 [0 []
-                           4 []]]]]]]]
-        [0 6]
-        purple-green
-        purple-green-2)
-      (wire 1 [[[0 2]] [[0 2]]])
-      (wire 2 [[[2 3] [0 1]] [[2 3]]])
-      (wire 3 [[[0 2]] [[0 2]]])
-      (wire 4 [[[2 3]] [[0 1] [2 3]]])
-      (wire 5 [[[0 2]] [[0 2]]])
-      ))
-
-(def level-2-3
-  (-> (mk-level
-        [0 0 PI]
-        [4 [4 [0 []
-               4 [4 [0 []
-                     4 [4 [0 []
-                           4 []]]]]]]]
-        [0 6]
-        red-white
-        red-white-3)
-      (wire 1 [[[0 2]] [[0 2]] [[0 2]]])
-      (wire 2 [[[2 3] [0 1]] [[2 3]] [[2 3]]])
-      (wire 3 [[[1 3]] [[0 2] [1 3]] [[0 2] [1 3]]])
-      (wire 4 [[[2 3]] [[0 1] [2 3]] [[2 3]]])
-      (wire 5 [[[0 2]] [[0 2]] [[0 2]]])
-      ))
-
-(def level-99 (mk-level
-               [0 0 0]
-               one
-               [0 1]
-               [[250 175 0] [0 0 250] [0 150 225]]
-               [[250 175 0] [255 125 50]
-                ;[200 225 0]
-                ]))
-
-
-(def levels [level-1-1
-             level-1-2
-             level-1-3
-             level-2-1
-             level-2-2
-             level-2-3
-             ])
+                                 6 []]]]]]]]
+              [20 4])
+     (partial mk-level
+              [0 0 PI]
+              [8 [8 []
+                  4 [0 []
+                     8 [0 []
+                        4 []
+                        8 []
+                        4 []
+                        8 []
+                        4 []]]
+                  8 []
+                  4 []
+                  8 []
+                  4 []
+                  8 []
+                  4 []]]
+              [11 5])
+     ])
 
 
 
-(defn load-level [n]
-  (log (str "asked for level " n))
-  (let [m (mod (dec n) (count levels))]
-    (log (str  "returning " m))
-    (nth levels m)))
+(defn finish [level channel-count [colours channels]]
+  (-> (level colours (take channel-count channels))
+      wire-paths))
+
+(defn finish-level [n]
+  (let [index (mod (int (/ n 3)) (count unfinished-levels))
+        channel-count (inc (mod n 3))
+        level (unfinished-levels index)
+        colours (rand-nth all-colours)]
+    (finish level channel-count colours)))
+
+(defn get-level [n]
+  (let [t (count tutorial-levels)]
+    (if (< n t)
+      (tutorial-levels n)
+      (finish-level (- n t)))))
+

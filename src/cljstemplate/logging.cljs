@@ -10,7 +10,6 @@
     (fn [x] (.log js/console (str "<" (name log-name) ">") x) x)
     identity))
 
-
 (def change-log (logger :changes))
 
 (def value-store (atom {}))

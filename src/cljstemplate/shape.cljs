@@ -12,7 +12,8 @@
 
 (def log (logger :shape))
 
-(def debug true)
+(def debug false)
+
 
 
 (defn index-of [s v]
@@ -338,14 +339,14 @@
   (log (str {:w w :h h :mw max-w :mh max-h}))
   (log (min (/ max-w w) (/ max-h h))))
 
-(defn render-at-rest [context sf mouse channels colours shape id]
-  (if (not-rotating? shape)
+(defn render-at-rest [context sf mouse channels colours ends shape id]
+  (if (and (not-rotating? shape) (not (ends id)))
     (render-shape context sf mouse channels colours shape id)
     shape))
 
-(defn render-in-motion [context sf mouse channels colours shape id]
+(defn render-in-motion [context sf mouse channels colours ends shape id]
   ;(log-when-changes :motion (str "Render in motion: " shape))
-  (if (rotating? shape)
+  (if (and (rotating? shape) (not (ends id)))
     (render-shape context sf mouse channels colours shape id)
     shape))
 
@@ -463,23 +464,12 @@
   level)
 
 
-
+; TODO: is this expensive?
 (defn attention-gradient [context x y radius]
-
   (let [grd (.createRadialGradient context x y 1 x y radius)]
     (.addColorStop grd 0 "rgba(250, 250, 250, 1.0")
     (.addColorStop grd 1 "rgba(250, 250, 250, 0.0")
-    grd)
-
-  ;var grd=ctx.createRadialGradient(75,50,5,90,60,100);
-  ;grd.addColorStop(0,"red");
-  ;grd.addColorStop(1,"white");
-  ;
-  ;// Fill with gradient
-  ;ctx.fillStyle=grd;
-  ;ctx.fillRect(10,10,150,100);
-  ;
-  )
+    grd))
 
 
 (defn render-attention [context x y radius timestamp]
@@ -497,21 +487,19 @@
 (defn render [[context width height] level mouse timestamp done]
   (let [sf (scale-factor (:width level) (:height level) width height)
         channels (:channels level)
-        colours (:colours level)]
+        colours (:colours level)
+        [start] (:start level)
+        [end] (:end level)
+        ends #{start end}
+        ]
     (if @done
       (render-attention context width height (/ (min width height) 2) timestamp))
     (-> level
-        (update :shapes #(doall (map (partial render-at-rest context sf mouse channels colours) % (range))))
-        (update :shapes #(doall (map (partial render-in-motion context sf mouse channels colours) % (range))))
+        (update :shapes #(doall (map (partial render-at-rest context sf mouse channels colours ends) % (range))))
+        (update :shapes #(doall (map (partial render-in-motion context sf mouse channels colours ends) % (range))))
         (render-start context timestamp colours sf)
         (render-end context timestamp colours sf done)
         )
     ;; TODO: transitioning shapes are rendered twice!
     ))
 
-            ;#(map (partial render-in-motion context sf click)
-            ;      (map (partial render-at-rest context sf click) %)))))
-
-
-;;  render
-;;;  creates a render function (returns it or adds it to a map/list by z-order [cons/conj? - only two z-orders!]

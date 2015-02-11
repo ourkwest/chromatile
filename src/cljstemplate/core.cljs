@@ -6,7 +6,7 @@
                                             tri-pad tri-radius]]
         [cljstemplate.logging :only [logger log-when-changes]]
         [cljstemplate.shape :only [level-1 render check-connections do-rotations]]
-        [cljstemplate.levels :only [level-2 load-level]]
+        [cljstemplate.levels :only [get-level shuffle-shapes]]
         )
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [clojure.browser.repl :as repl]
@@ -54,21 +54,23 @@
 
 ;;;;;;;;;;
 
-(defn load-next []
-  (log "Load!")
-  (set! (.-location js/window) next-location))
+;(defn load-next []
+;  (start))
 
 (let [clicks (listen (dom/getElement "nextButton") "click")]
   (go (while true
         (<! clicks)
-        (load-next))))
+        (level-up inc))))
 
 ;;;;;;;;;
 
 (defn done-fn []
-  (set! (.-visibility (.-style (dom/getElement "nextButton"))) "visible")
-  (log "DONE!"))
+  (set! (.-visibility (.-style (dom/getElement "nextButton"))) "visible"))
 
+(def this-level-id (atom 0))
+(def this-level (atom nil))
+(def level-checked (atom false))
+(def shuffles-so-far (atom 0))
 (def done (atom false))
 
 ;;;;;;;;;
@@ -102,32 +104,72 @@
 ;;;;;;;;;;
 
 
+
+
 (defn per-frame-processing [timestamp]
   (clear canvas (first (:colours @this-level)))
   (swap! this-level check-connections)
   (swap! this-level (partial do-rotations timestamp))
   (let [{x :x y :y clicked :clicked} @pointer-state
-        was-done @done]
+        was-done @done
+        canvas (if @level-checked canvas [(first canvas) 1 1])]
+
     (swap! this-level #(render canvas % [x y clicked timestamp] timestamp done))
-    (if (and (not was-done) @done)
-      (done-fn)))
+
+    (cond
+      (and @level-checked @done was-done) nil
+      (and @level-checked @done (not was-done)) (done-fn)
+      (and (not @level-checked) (not @done)) (reset! level-checked true)
+      (and (not @level-checked) @done) (if (< 3 (swap! shuffles-so-far inc))
+                                         (level-up identity)
+                                         (do
+                                           (log "Shuffling")
+                                           (swap! this-level shuffle-shapes)
+                                           (reset! done false)))
+      :else nil))
+
   (swap! pointer-state dissoc :clicked))
 
 (defn animate [timestamp]
   (per-frame-processing timestamp)
+
+  ;(js/setTimeout
+  ;  (fn [] (.requestAnimationFrame js/window animate)) 330)
+
+  (.requestAnimationFrame js/window animate)
+  )
+
+
+;(defn start []
+;  (let [uri (Uri. (.-location js/window))
+;        level-str (.getParameterValue uri "level")
+;        level (if (and level-str (re-matches #"\d+" level-str))
+;                (js/parseInt level-str)
+;                0)
+;        next-uri (.setParameterValue uri "level" (str (inc level)))]
+;    (def this-level (atom (get-level level)))
+;    (def next-location next-uri)
+;    (log (str "Level is: " level))
+;    (log (str @this-level)))
+;  (.requestAnimationFrame js/window animate))
+
+
+(defn level-up [level-fn]
+  (set! (.-visibility (.-style (dom/getElement "nextButton"))) "hidden")
+  (swap! this-level-id level-fn)
+  (log (str "Loading level " @this-level-id))
+  (reset! this-level (get-level @this-level-id))
+  (reset! level-checked false)
+  (reset! done false)
+  (reset! shuffles-so-far 0)
+
+  (log (str @this-level))
+
+  )
+
+
+(defn begin []
+  (level-up (fn [x] 0))
   (.requestAnimationFrame js/window animate))
 
-(defn start []
-  (let [uri (Uri. (.-location js/window))
-        level-str (.getParameterValue uri "level")
-        level (if (and level-str (re-matches #"\d+" level-str))
-                (js/parseInt level-str)
-                1)
-        next-uri (.setParameterValue uri "level" (str (inc level)))]
-    (def this-level (atom (load-level level)))
-    (def next-location next-uri)
-    (log (str "Level is: " level))
-    (log (str @this-level)))
-  (.requestAnimationFrame js/window animate))
-
-(start)
+(begin)
