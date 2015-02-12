@@ -114,7 +114,7 @@
             position (get-in shape [:rotation :position])
             sides (:n shape)
             neighbour-id (nth neighbours (mod (+ output position) sides))]
-        (if neighbour-id
+        (if (and neighbour-id (not= output 9))
           (seeds-from shapes neighbour-id shape-id channel-id))))))
 
 (defn populate-shape-connections [shapes [[shape-id channel-id wire-id direction-id] & seeds]]

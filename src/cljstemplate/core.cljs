@@ -39,7 +39,7 @@
                            :y (- (.-clientY event) (.-top rect))
                            :clicked true})))
 
-(let [clicks (listen (dom/getElement "theCanvas") "click")]
+(let [clicks (listen (dom/getElement "theCanvas") "mousedown")]
   (go (while true
         (handle-click (<! clicks)))))
 
@@ -53,9 +53,6 @@
         (handle-moves (<! moves)))))
 
 ;;;;;;;;;;
-
-;(defn load-next []
-;  (start))
 
 (let [clicks (listen (dom/getElement "nextButton") "click")]
   (go (while true
@@ -114,6 +111,8 @@
         was-done @done
         canvas (if @level-checked canvas [(first canvas) 1 1])]
 
+    ;(log (str [x y clicked timestamp]))
+
     (swap! this-level #(render canvas % [x y clicked timestamp] timestamp done))
 
     (cond
@@ -140,19 +139,6 @@
   )
 
 
-;(defn start []
-;  (let [uri (Uri. (.-location js/window))
-;        level-str (.getParameterValue uri "level")
-;        level (if (and level-str (re-matches #"\d+" level-str))
-;                (js/parseInt level-str)
-;                0)
-;        next-uri (.setParameterValue uri "level" (str (inc level)))]
-;    (def this-level (atom (get-level level)))
-;    (def next-location next-uri)
-;    (log (str "Level is: " level))
-;    (log (str @this-level)))
-;  (.requestAnimationFrame js/window animate))
-
 
 (defn level-up [level-fn]
   (set! (.-visibility (.-style (dom/getElement "nextButton"))) "hidden")
@@ -162,9 +148,7 @@
   (reset! level-checked false)
   (reset! done false)
   (reset! shuffles-so-far 0)
-
-  (log (str @this-level))
-
+  ;(log (str @this-level))
   )
 
 

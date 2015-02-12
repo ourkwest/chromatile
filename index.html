@@ -2,6 +2,8 @@
 
     <head>
 
+        <title>Game 0.</title>
+
         <style>
             html {
                 background-color: black;
@@ -10,17 +12,6 @@
                 position: absolute;
                 top: 0px;
                 left: 0px;
-            }
-            #resetButton {
-                background-color: black;
-                color: lightgreen;
-                position: absolute;
-                top: 10px;
-                left: 10px;
-                padding: 10px;
-                margin: 10px;
-                border: 1px solid lightgreen;
-                border-radius: 5px;
             }
             #nextButton {
                 visibility: hidden;
@@ -39,21 +30,14 @@
                 background-color: rgba(0, 0, 0, 0.5);
             }
 
-            .show {
-                visibility: visible;
-            }
         </style>
 
     </head>
 
     <body id="theBody">
 
-
-
     <canvas id="theCanvas"></canvas>
     <div id="nextButton">Next</div>
-
-    <!--<span id="resetButton">Reset!</span>-->
 
     <script src="out/goog/base.js" type="text/javascript"></script>
     <script src="out/cljstemplate.js" type="text/javascript"></script>

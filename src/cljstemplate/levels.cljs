@@ -129,8 +129,8 @@
                               (vec (for [j (range (:n shape))]
 
                                      (if (= direction 1)
-                                       [j (:n shape)]
-                                       [(:n shape) j])
+                                       [j 9]
+                                       [9 j])
 
                                      ;[j (mod (inc j) (:n shape))]
                                      ))
