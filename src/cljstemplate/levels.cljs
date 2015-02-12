@@ -290,7 +290,7 @@
 (def orange-blue-1 (butlast orange-blue-2))
 
 (def purple-green [[175 0 125] [0 50 0] [100 200 100]])
-(def purple-green-3 [[250 0 0] [0 0 250] [200 200 0]])
+(def purple-green-3 [[200 200 0] [250 0 0] [0 0 250]])
 
 (def red-white [[250 50 50] [150 0 0] [250 250 250]])
 (def red-white-3 [[200 50 150] [255 0 0] [255 125 125]])
@@ -299,14 +299,16 @@
 (def black-cmy-3 [[250 250 0] [250 0 250] [0 250 250]])
 
 (def white-rgb [[0 0 0] [125 125 125] [250 250 250]])
-(def white-rgb-3 [[250 0 0] [0 250 0] [0 0 250]])
+(def white-rgb-3 [[250 0 0] [100 0 100] [175 175 255]])
 
 (def all-colours
-  [[orange-blue orange-blue-3]
+  [
+   [orange-blue orange-blue-3]
    [purple-green purple-green-3]
    ;[red-white red-white-3] can't make this look good!
    [black-cmy black-cmy-3]
-   [white-rgb white-rgb-3]])
+   [white-rgb white-rgb-3]
+   ])
 
 
 
