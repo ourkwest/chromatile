@@ -5,7 +5,7 @@
                                             hex-pad hex-radius
                                             tri-pad tri-radius]]
         [cljstemplate.logging :only [logger log-when-changes]]
-        [cljstemplate.shape :only [level-1 render check-connections do-rotations]]
+        [cljstemplate.shape :only [render check-connections do-rotations]]
         [cljstemplate.levels :only [get-level shuffle-shapes]]
         )
   (:require-macros [cljs.core.async.macros :refer [go]])
@@ -148,6 +148,7 @@
   (reset! level-checked false)
   (reset! done false)
   (reset! shuffles-so-far 0)
+  (set! (.-innerHTML (dom/getElement "levelCounter")) (str (inc @this-level-id)))
   ;(log (str @this-level))
   )
 

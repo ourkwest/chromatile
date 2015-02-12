@@ -250,7 +250,7 @@
 
 
 (defn merge-spam [shape [channel from onto]]
-  (log (str "SPAM: " channel " " from " " onto))
+  ;(log (str "SPAM: " channel " " from " " onto))
   (update-in shape [:wiring channel] conj [from onto]))
 
 (defn de-dupe-channel-spam [channel-wiring]
