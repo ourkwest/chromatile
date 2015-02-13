@@ -175,6 +175,10 @@
                   4 square-inner-radius
                   6 hex-inner-radius
                   8 oct-inner-radius})
+(def pads {3 tri-pad
+           4 square-pad
+           6 hex-pad
+           8 oct-pad})
 
 (defn click-result [shape context click]
   (if (if-let [[x y clicked] click]
@@ -208,6 +212,7 @@
         delta (/ alpha 2)
         radius (* (radii n) sf)
         inner-radius (* (inner-radii n) sf)
+        pad (* (pads n) sf)
         beta (+ r delta (* (or (:current rotation) (:position rotation)) alpha))
         gammas (iterate #(+ % alpha) beta)
         epsilons (iterate #(+ % alpha) (- beta delta))
@@ -243,14 +248,14 @@
                   [from-x-p from-y-p] [(Math.cos (nth epsilons from)) (- (Math.sin (nth epsilons from)))]
                   [onto-x-p onto-y-p] [(Math.cos (nth epsilons onto)) (- (Math.sin (nth epsilons onto)))]
 
-                  [xa ya] [(+ xs (* inner-radius from-x))
-                           (+ ys (* inner-radius from-y))]
+                  [xa ya] [(+ xs (* pad from-x))
+                           (+ ys (* pad from-y))]
                   [xb yb] [(+ xs (* 0.5 inner-radius from-x) (* ch-pos from-x-p))
                            (+ ys (* 0.5 inner-radius from-y) (* ch-pos from-y-p))]
                   [xc yc] [(+ xs (* 0.5 inner-radius onto-x) (* ch-pos onto-x-p))
                            (+ ys (* 0.5 inner-radius onto-y) (* ch-pos onto-y-p))]
-                  [xd yd] [(+ xs (* inner-radius onto-x))
-                           (+ ys (* inner-radius onto-y))]]
+                  [xd yd] [(+ xs (* pad onto-x))
+                           (+ ys (* pad onto-y))]]
               (. context (moveTo xa ya))
               (. context (bezierCurveTo xb yb xc yc xd yd)))
             (if (some #{:on} switched)
