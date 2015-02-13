@@ -1,0 +1,45 @@
+html {
+    background-color: black;
+}
+
+#theCanvas {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+}
+
+#nextButton {
+    visibility: hidden;
+    bottom: 10px;
+    right: 10px;
+    cursor: pointer;
+}
+
+#nextButton:hover {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+#levelCounter {
+    top: 10px;
+    right: 10px;
+    cursor: default;
+}
+
+.ui {
+    position: absolute;
+    border: 1px solid white;
+    border-radius: 10px;
+    padding: 10px;
+    background-color: black;
+    color: white;
+    font-family: Verdana;
+}
+
+.noSelect {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}

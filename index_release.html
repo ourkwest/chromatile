@@ -1,60 +1,17 @@
 <html>
+    <head>
+        <title>Game 0.</title>
+        <link rel="stylesheet" type="text/css" href="game0.css">
+    </head>
 
-<head>
+    <body id="theBody">
 
-    <title>Game 0.</title>
+        <canvas id="theCanvas"></canvas>
 
-    <style>
-        html {
-            background-color: black;
-        }
-        #theCanvas {
-            position: absolute;
-            top: 0px;
-            left: 0px;
-        }
-        #nextButton {
-            visibility: hidden;
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            border: 1px solid white;
-            border-radius: 10px;
-            padding: 10px;
-            background-color: black;
-            color: white;
-            font-family: Verdana;
-            cursor: pointer;
-        }
-        #nextButton:hover {
-            background-color: rgba(0, 0, 0, 0.5);
-        }
-        #levelCounter {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            border: 1px solid white;
-            border-radius: 10px;
-            padding: 10px;
-            background-color: black;
-            color: white;
-            font-family: Verdana;
-        }
+        <div id="levelCounter" class="noSelect ui">0</div>
+        <div id="nextButton" class="noSelect ui">Next</div>
 
-    </style>
+        <script src="out-adv/cljstemplate.min.js" type="text/javascript"></script>
 
-</head>
-
-<body id="theBody">
-
-<canvas id="theCanvas"></canvas>
-
-<div id="levelCounter">0</div>
-<div id="nextButton">Next</div>
-
-<!--<script src="out/goog/base.js" type="text/javascript"></script>-->
-<script src="out-adv/cljstemplate.min.js" type="text/javascript"></script>
-<!--<script type="text/javascript">goog.require("cljstemplate.core");</script>-->
-
-</body>
+    </body>
 </html>

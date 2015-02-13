@@ -87,7 +87,7 @@
 
 (defn populate-shape-connections [shapes [[shape-id channel-id wire-id direction-id] & seeds]]
     (let [new-shapes (update shapes shape-id #(switch-on % channel-id wire-id direction-id))
-          new-seeds (concat seeds (more-seeds shapes shape-id channel-id wire-id direction-id))]
+          new-seeds (concat seeds (more-seeds new-shapes shape-id channel-id wire-id direction-id))]
       (if (seq new-seeds)
         (recur new-shapes new-seeds)
         new-shapes)))
@@ -347,11 +347,12 @@
       (let [f (mod (+ (/ timestamp 100) (* i (/ radius channel-count))) radius)]
         (fill-circle context [xs ys f] (conj (nth many-channels i) (- 1 (/ f radius))))))
 
+    (. context (restore))
+
     (trace-path context vtxs)
     (set! (. context -strokeStyle) (rgb-str bdr))
     (set! (. context -lineWidth) 1)
-    (. context (stroke))
-    (. context (restore)))
+    (. context (stroke)))
 
   level)
 
@@ -397,11 +398,12 @@
             (fill-circle context [(- xi radius_15th) (- yi radius_15th) radius_20th] [255 255 255 0.15])
             ))))
 
+    (. context (restore))
+
     (trace-path context vtxs)
     (set! (. context -strokeStyle) (rgb-str bdr))
     (set! (. context -lineWidth) 1)
-    (. context (stroke))
-    (. context (restore)))
+    (. context (stroke)))
   level)
 
 
