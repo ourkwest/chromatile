@@ -6,7 +6,7 @@
 
 (def shape-side-length 50)
 (defn shape-pad [inner-radius]
-  (* inner-radius 1.05))
+  (* inner-radius 1.025))
 
 (def square-side shape-side-length)
 (def square-inner-radius (/ square-side 2))
@@ -30,5 +30,19 @@
 (def tri-inner-radius (/ tri-radius 2))
 (def tri-pad (shape-pad tri-inner-radius))
 
+;;;;;
 
+(def pad-diff (- hex-pad hex-inner-radius))
+
+(def tri-adjust (/ (- tri-pad pad-diff) tri-inner-radius))
+(def tri-radius (* tri-radius tri-adjust))
+(def tri-inner-radius (* tri-inner-radius tri-adjust))
+
+(def square-adjust (/ (- square-pad pad-diff) square-inner-radius))
+(def square-radius (* square-radius square-adjust))
+(def square-inner-radius (* square-inner-radius square-adjust))
+
+(def oct-adjust (/ (- oct-pad pad-diff) oct-inner-radius))
+(def oct-radius (* oct-radius oct-adjust))
+(def oct-inner-radius (* oct-inner-radius oct-adjust))
 

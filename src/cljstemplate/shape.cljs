@@ -226,11 +226,11 @@
       (. context (lineTo (+ xs (* radius (Math.sin gamma))) (+ ys (* radius (Math.cos gamma))))))
     (. context (closePath))
 
-    (set! (. context -strokeStyle) (rgb-str bdr))
+    ;(set! (. context -strokeStyle) (rgb-str bdr))
     (set! (. context -fillStyle) (rgba-str (conj fg (if (.isPointInPath context mx my) 0.6 1))))
 
     (. context (fill))
-    (. context (stroke))
+    ;(. context (stroke))
 
     (. context (save))
     (. context (clip))
@@ -289,6 +289,16 @@
                   (. context (fillText (str id) xs ys))
                   ))
       (. context (restore))
+
+      (. context (beginPath))
+      (. context (moveTo (+ xs (* radius (Math.sin beta))) (+ ys (* radius (Math.cos beta)))))
+      (doseq [gamma (take (dec n) (drop 1 gammas))]
+        (. context (lineTo (+ xs (* radius (Math.sin gamma))) (+ ys (* radius (Math.cos gamma))))))
+      (. context (closePath))
+
+      (set! (. context -strokeStyle) (rgb-str bdr))
+      (. context (stroke))
+
       result)))
 
 
