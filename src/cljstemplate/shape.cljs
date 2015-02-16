@@ -411,8 +411,8 @@
 
 (defn mk-gradient [key context x y radius]
   (let [grd (.createRadialGradient context x y 1 x y radius)]
-    (.addColorStop grd 0 "rgba(250, 250, 250, 1.0")
-    (.addColorStop grd 1 "rgba(250, 250, 250, 0.0")
+    (.addColorStop grd 0 "rgba(250, 250, 250, 1.0)")
+    (.addColorStop grd 1 "rgba(250, 250, 250, 0.0)")
     (swap! gradients assoc key [[context x y radius] grd])
     grd))
 
