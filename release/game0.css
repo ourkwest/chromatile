@@ -1,5 +1,6 @@
 html {
     background-color: black;
+    text-align: center;
 }
 
 #theCanvas {
@@ -23,6 +24,13 @@ html {
     top: 10px;
     right: 10px;
     cursor: default;
+}
+
+#msgBus {
+    left: 10px;
+    bottom: 10px;
+    cursor: default;
+    /*transition: bottom 1s;*/
 }
 
 .ui {

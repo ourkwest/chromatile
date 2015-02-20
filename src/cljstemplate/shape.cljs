@@ -186,11 +186,9 @@
     (clicked shape click)
     shape))
 
-(defn vertices [{n :n [x y r] :location rotation :rotation} sf]
+(defn vertices [{n :n [x y r] :location rotation :rotation} xs ys sf]
   (let [alpha (alphas n)
         delta (/ alpha 2)
-        xs (* x sf)
-        ys (* y sf)
         radius (* (radii n) sf)
         beta (+ r delta (* (or (:current rotation) (:position rotation)) alpha))
         gammas (take n (iterate #(+ % alpha) beta))]
@@ -206,8 +204,25 @@
   (. context (lineTo x1 y1)))
 
 
-(defn render-shape [context sf [mx my :as mouse] channels [_ bdr fg] {[x y r] :location n :n rotation :rotation wiring :wiring :as shape} id]
+(def path-lengths
+  {[4 1] 1.6
+   [4 3] 1.6
+   [6 1] 1.3
+   [6 5] 1.3
+   [8 1] 1.0
+   [8 2] 1.5
+   [8 3] 1.8
+   [8 5] 1.8
+   [8 6] 1.5
+   [8 7] 1.0
+   })
+
+
+(defn render-shape [context sf [x-offset y-offset] [mx my :as mouse] channels [_ bdr fg] {[x y r] :location n :n rotation :rotation wiring :wiring :as shape} id timestamp]
   (set! (. context -lineWidth) 1)
+  (. context (setLineDash #js []))
+
+
   (let [alpha (alphas n)
         delta (/ alpha 2)
         radius (* (radii n) sf)
@@ -217,8 +232,8 @@
         gammas (iterate #(+ % alpha) beta)
         epsilons (iterate #(+ % alpha) (- beta delta))
         channel-width (* 5 sf)
-        xs (* x sf)
-        ys (* y sf)]
+        xs (+ (* x sf) x-offset)
+        ys (+ (* y sf) y-offset)]
 
     (. context (beginPath))
     (. context (moveTo (+ xs (* radius (Math.sin beta))) (+ ys (* radius (Math.cos beta)))))
@@ -241,13 +256,12 @@
         (let [channel (nth channels ch)
               channel-wiring (nth wiring ch)
               ch-pos (* (- ch (/ (dec (count channels)) 2)) (/ inner-radius 2))]
-          (doseq [[from onto switched] channel-wiring]
+          (doseq [[from onto [fw bw :as switched]] channel-wiring]
             (. context (beginPath))
             (let [[from-x from-y] [(Math.sin (nth epsilons from)) (Math.cos (nth epsilons from))]
                   [onto-x onto-y] [(Math.sin (nth epsilons onto)) (Math.cos (nth epsilons onto))]
                   [from-x-p from-y-p] [(Math.cos (nth epsilons from)) (- (Math.sin (nth epsilons from)))]
                   [onto-x-p onto-y-p] [(Math.cos (nth epsilons onto)) (- (Math.sin (nth epsilons onto)))]
-
                   [xa ya] [(+ xs (* pad from-x))
                            (+ ys (* pad from-y))]
                   [xb yb] [(+ xs (* 0.5 inner-radius from-x) (* ch-pos from-x-p))
@@ -257,29 +271,57 @@
                   [xd yd] [(+ xs (* pad onto-x))
                            (+ ys (* pad onto-y))]]
               (. context (moveTo xa ya))
-              (. context (bezierCurveTo xb yb xc yc xd yd)))
-            (if (some #{:on} switched)
-              (do
-                (set! (. context -strokeStyle) "rgb(255,255,255)")
-                (set! (. context -lineWidth) (inc channel-width))
-                (. context (stroke))
-                (set! (. context -strokeStyle) (rgb-str channel))
-                (set! (. context -lineWidth) channel-width)
-                (. context (stroke))
-                (set! (. context -strokeStyle) "rgba(255,255,255, 0.25)")
-                (set! (. context -lineWidth) (/ channel-width 2))
-                (. context (stroke))
-                (set! (. context -strokeStyle) "rgba(255,255,255, 0.15)")
-                (set! (. context -lineWidth) (/ channel-width 6))
-                (. context (stroke))
+              (. context (bezierCurveTo xb yb xc yc xd yd))
+
+              (let [length-est (* inner-radius (get path-lengths [n (Math/abs (- from onto))] 2))
+                    offset (mod (* (/ timestamp 2000) (inc length-est)) (inc length-est))
+                    lineDash #js [1 (/ length-est 2)]]
+
+                ; Render background
+                (if (some #{:on} switched)
+                  (do
+                    (set! (. context -strokeStyle) "rgb(255,255,255)")
+                    (set! (. context -lineWidth) (inc (/ channel-width 2)))
+                    (. context (stroke))
+                    (set! (. context -strokeStyle) (rgb-str channel))
+                    (set! (. context -lineWidth) (/ channel-width 2))
+                    (. context (stroke))
+
+                    )
+                  (do
+                    (set! (. context -strokeStyle) "rgb(0,0,0)")
+                    (set! (. context -lineWidth) (inc (/ channel-width 2)))
+                    (. context (stroke))
+                    (set! (. context -strokeStyle) (rgba-str (conj channel 0.75)))
+                    (set! (. context -lineWidth) (/ channel-width 2))
+                    (. context (stroke))))
+
+                ; Render blobs
+                (doseq [[direction os] [[fw offset] [bw (- offset)]]]
+                  (if (= :on direction)
+                    (do
+
+                      (. context (setLineDash lineDash))
+                      (set! (. context -lineDashOffset) os)
+
+                      (set! (. context -strokeStyle) (rgb-str channel))
+                      (set! (. context -lineWidth) channel-width)
+                      (. context (stroke))
+                      (set! (. context -strokeStyle) "rgba(255,255,255, 0.5)")
+                      (set! (. context -lineWidth) (/ channel-width 2))
+                      (. context (stroke))
+
+                      ;(log (str "ldoA: " (. context -lineDashOffset))) ; TODO: wtf?
+
+
+                      )))
+
+
+                (. context (setLineDash #js []))
+
                 )
-              (do
-                (set! (. context -strokeStyle) "rgb(0,0,0)")
-                (set! (. context -lineWidth) (inc (/ channel-width 2)))
-                (. context (stroke))
-                (set! (. context -strokeStyle) (rgba-str (conj channel 0.75)))
-                (set! (. context -lineWidth) (/ channel-width 2))
-                (. context (stroke))))
+
+              )
             )
           ))
       (if debug (do
@@ -307,15 +349,15 @@
   ;(log (min (/ max-w w) (/ max-h h)))
   (min (/ max-w w) (/ max-h h)))
 
-(defn render-at-rest [context sf mouse channels colours ends shape id]
+(defn render-at-rest [context sf offset mouse channels colours ends timestamp shape id]
   (if (and (not-rotating? shape) (not (ends id)))
-    (render-shape context sf mouse channels colours shape id)
+    (render-shape context sf offset mouse channels colours shape id timestamp)
     shape))
 
-(defn render-in-motion [context sf mouse channels colours ends shape id]
+(defn render-in-motion [context sf offset mouse channels colours ends timestamp shape id]
   ;(log-when-changes :motion (str "Render in motion: " shape))
   (if (and (rotating? shape) (not (ends id)))
-    (render-shape context sf mouse channels colours shape id)
+    (render-shape context sf offset mouse channels colours shape id timestamp)
     shape))
 
 
@@ -336,12 +378,12 @@
     (. surface (stroke))))
 
 
-(defn render-start [{shapes :shapes [start _ _] :start channels :channels :as level} context timestamp [_ bdr fg] sf]
+(defn render-start [{shapes :shapes [start _ _] :start channels :channels :as level} context timestamp [_ bdr _] sf [x-offset y-offset]]
   (let [shape (nth shapes start)
-        vtxs (vertices shape sf)
         {[x y _] :location n :n} shape
-        xs (* x sf)
-        ys (* y sf)
+        xs (+ (* x sf) x-offset)
+        ys (+ (* y sf) y-offset)
+        vtxs (vertices shape xs ys sf)
         radius (* (radii n) sf)
         many-channels (apply concat (repeat (- 4 (count channels)) channels))
         channel-count (count many-channels)]
@@ -354,7 +396,7 @@
     (fill-circle context [xs ys radius] [0 0 0 1])
 
     (doseq [i (range channel-count)]
-      (let [f (mod (+ (/ timestamp 100) (* i (/ radius channel-count))) radius)]
+      (let [f (mod (+ (/ timestamp 50) (* i (/ radius channel-count))) radius)]
         (fill-circle context [xs ys f] (conj (nth many-channels i) (- 1 (/ f radius))))))
 
     (. context (restore))
@@ -366,12 +408,12 @@
 
   level)
 
-(defn render-end [{shapes :shapes [end _ _] :end channels :channels :as level} context timestamp [_ bdr fg] sf done]
+(defn render-end [{shapes :shapes [end _ _] :end channels :channels :as level} context timestamp [_ bdr fg] sf [x-offset y-offset] done]
   (let [shape (nth shapes end)
-        vtxs (vertices shape sf)
         {[x y _] :location n :n wiring :wiring} shape
-        xs (* x sf)
-        ys (* y sf)
+        xs (+ (* x sf) x-offset)
+        ys (+ (* y sf) y-offset)
+        vtxs (vertices shape xs ys sf)
         radius (* (radii n) sf)
         radius_3rd (/ radius 3)
         radius_5th (/ radius 5)
@@ -453,6 +495,7 @@
 
 (defn render [[context width height] level mouse timestamp done]
   (let [sf (scale-factor (:width level) (:height level) width height)
+        offset [(/ (- width (* sf (:width level))) 2) (/ (- height (* sf (:height level))) 2)]
         channels (:channels level)
         colours (:colours level)
         [start] (:start level)
@@ -463,10 +506,10 @@
     (if @done
       (render-attention :next context width height (/ (min width height) 2) timestamp))
     (-> level
-        (update :shapes #(doall (map (partial render-at-rest context sf mouse channels colours ends) % (range))))
-        (update :shapes #(doall (map (partial render-in-motion context sf mouse channels colours ends) % (range))))
-        (render-start context timestamp colours sf)
-        (render-end context timestamp colours sf done)
+        (update :shapes #(doall (map (partial render-at-rest context sf offset mouse channels colours ends timestamp) % (range))))
+        (update :shapes #(doall (map (partial render-in-motion context sf offset mouse channels colours ends timestamp) % (range))))
+        (render-start context timestamp colours sf offset)
+        (render-end context timestamp colours sf offset done)
         )
     ;; TODO: transitioning shapes are rendered twice!
     ))

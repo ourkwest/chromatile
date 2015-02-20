@@ -199,6 +199,11 @@
      :start    start
      :end      end}))
 
+(defn add-msgs [level start-msg end-msg]
+  (-> level
+      (assoc :start-msg start-msg)
+      (assoc :end-msg end-msg)))
+
 
 (defn add-distance [distance ends {dte :temp-dte neighbours :neighbours :as shape}]
   (if (some ends neighbours)
@@ -250,11 +255,15 @@
 
 
 (defn merge-spam [shape [channel from onto]]
-  ;(log (str "SPAM: " channel " " from " " onto))
   (update-in shape [:wiring channel] conj [from onto]))
 
+(defn mk-filter [collection]
+  (fn [[a b]] (not (and (< a b) (some #{[b a]} collection)))))
+
 (defn de-dupe-channel-spam [channel-wiring]
-  (into [] (into #{} channel-wiring)))
+  ;{:pre  [(not= 1 (log (str "PRE: " channel-wiring)))]
+  ; :post [(not= 1 (log (str "POST: " %)))]}
+  (filterv (mk-filter channel-wiring) (into [] (into #{} channel-wiring))))
 
 (defn de-dupe-spam [shape]
   (update-in shape [:wiring] #(mapv de-dupe-channel-spam %)))
@@ -285,7 +294,7 @@
 
 
 (def orange-blue [[250 175 0] [0 0 250] [0 150 225]])
-(def orange-blue-3 [[250 175 0] [250 250 0] [250 100 0]])
+(def orange-blue-3 [[250 175 0] [200 250 0] [250 100 0]])
 (def orange-blue-2 (butlast orange-blue-3))
 (def orange-blue-1 (butlast orange-blue-2))
 
@@ -298,7 +307,7 @@
 (def black-cmy [[200 200 200] [255 255 255] [0 0 0]])
 (def black-cmy-3 [[250 250 0] [250 0 250] [0 250 250]])
 
-(def white-rgb [[0 0 0] [125 125 125] [250 250 250]])
+(def white-rgb [[0 0 0] [250 250 250] [125 125 125]])
 (def white-rgb-3 [[250 0 0] [100 0 100] [175 175 255]])
 
 (def all-colours
@@ -329,6 +338,7 @@
        (wire 3 [[[1 3]]])
        (wire 4 [[[0 2]]])
        (wire 5 [[[0 2]]])
+       (add-msgs "Click on shapes to rotate them. Complete the path." "Awesome! You did it.")
        )
    (-> (mk-level
          [0 0 PI]
@@ -352,6 +362,7 @@
        (wire 6 [[] [[0 1]]])
        (wire 7 [[[3 1]] [[0 3]]])
        (wire 8 [[[0 2]] [[0 2]]])
+       (add-msgs "Sometimes you need to create more than one path." "Well done!")
        )
    (-> (mk-level
          [0 0 PI]
@@ -380,6 +391,45 @@
        (wire 9 [[     ] [[1 2]] [[0 2]]])
        (wire 10 [[[1 3]] [[0 3]] [[0 3]]])
        (wire 11 [[[0 2]] [[0 2]] [[0 2]]])
+       (add-msgs "There may be as many as three paths." "You're getting the hang of this!")
+       )
+   (-> (mk-level
+         [0 0 (/ PI 2)]
+         [4 [4 [0 []
+                4 []
+                4 [4 []]]
+             4 [0 []
+                4 [4 [0 []
+                      4 [0 []
+                         0 []
+                         4 []]]
+                   4 [4 []
+                      4 [4 [0 []
+                            4 [0 []
+                               0 []
+                               4 [0 []
+                                  4 [0 []
+                                     0 []
+                                     4 [0 []
+                                        4 []
+                                        4 [4 []]]]]]]]]]]]]
+         [0 16]
+         orange-blue
+         orange-blue-3)
+       (wire 5  [[[0 2]] [[0 2]] [[0 2]]])
+       (wire 6  [[[0 1]] [[0 1]] [[0 2]]])
+       (wire 7  [[[0 2]] [[0 3]] [     ]])
+       (wire 8  [[[0 3]] [     ] [     ]])
+       (wire 9  [[[1 3]] [     ] [     ]])
+       (wire 10 [[     ] [     ] [[1 3]]])
+       (wire 11 [[     ] [[0 2]] [     ]])
+       (wire 12 [[     ] [     ] [[0 1]]])
+       (wire 13 [[     ] [[1 2]] [[0 2]]])
+       (wire 14 [[[1 3]] [[0 3]] [[0 3]]])
+       (wire 15 [[[0 2]] [[0 2]] [[0 2]]])
+       (wire 2  [[[0 2]] [[0 2]] [[0 2]]])
+       (wire 18 [[[0 1]] [[0 2]] [[0 3]]])
+       (add-msgs "You don't always have to use all the pieces." "Wow! Onto the real levels...")
        )])
 
 
@@ -471,10 +521,33 @@
      ])
 
 
+(def start-messages
+  [
+   "Good luck!"
+   "You're doing really well!"
+   "You're really good at this game!"
+   "May the hugs of a thousand kittens be with you."
+   "<img src=\"https://placekitten.com/g/300/300\" width=\"50px\" height=\"50px\" />"
+   ])
+
+(def end-messages
+  [
+   "Wow!"
+   "Awesome!"
+   "You did it!"
+   "You totally nailed that level!"
+   "You're really good at this game."
+   "You must be, like, a genius or something."
+   ])
+
+(defn add-random-msg [level]
+  (add-msgs level (rand-nth start-messages) (rand-nth end-messages)))
+
 
 (defn finish [level channel-count [colours channels]]
   (-> (level colours (take channel-count channels))
-      wire-paths))
+      wire-paths
+      add-random-msg))
 
 (defn finish-level [n]
   (let [index (mod (int (/ n 3)) (count unfinished-levels))

@@ -9,7 +9,9 @@
         [cljstemplate.levels :only [get-level shuffle-shapes]]
         )
   (:require-macros [cljs.core.async.macros :refer [go]])
-  (:require [clojure.browser.repl :as repl]
+  (:require
+  ;[clojure.browser.repl :as repl]
+    
             [goog.dom :as dom]
             [goog.events :as events]
             [cljs.core.async :refer [put! chan <! close!]])
@@ -28,6 +30,35 @@
     (events/listen el type
                    (fn [e] (put! out e)))
     out))
+
+;;;;;;;;;;
+
+;(def msg-bus (chan))
+
+(defn handle-msg [msg]
+
+  ;(if top?
+  ;  (do (set! (.-top (.-style (dom/getElement "msgBus"))) "10px")
+  ;      (set! (.-bottom (.-style (dom/getElement "msgBus"))) "auto"))
+  ;  (do (set! (.-top (.-style (dom/getElement "msgBus"))) "auto")
+  ;      (set! (.-bottom (.-style (dom/getElement "msgBus"))) "10px")))
+
+  (set! (.-transition (.-style (dom/getElement "msgBus"))) "bottom 0s")
+
+  (set! (.-bottom (.-style (dom/getElement "msgBus"))) "100%")
+  (set! (.-innerHTML (dom/getElement "msgBus")) msg)
+
+  (.setTimeout
+    js/window
+    (fn []
+      (set! (.-transition (.-style (dom/getElement "msgBus"))) "bottom 0.5s")
+      (set! (.-transitionTimingFunction (.-style (dom/getElement "msgBus"))) "ease-out") ;cubic-bezier(0.42,0,0.58,1)
+      (set! (.-bottom (.-style (dom/getElement "msgBus"))) "10px")) 10)
+
+  )
+
+;(go (while true
+;      (handle-msg (<! msg-bus))))
 
 ;;;;;;;;;;
 
@@ -61,8 +92,9 @@
 
 ;;;;;;;;;
 
-(defn done-fn []
-  (set! (.-visibility (.-style (dom/getElement "nextButton"))) "visible"))
+(defn done-fn [msg]
+  (set! (.-visibility (.-style (dom/getElement "nextButton"))) "visible")
+  (handle-msg msg))
 
 (def this-level-id (atom 0))
 (def this-level (atom nil))
@@ -117,7 +149,7 @@
 
     (cond
       (and @level-checked @done was-done) nil
-      (and @level-checked @done (not was-done)) (done-fn)
+      (and @level-checked @done (not was-done)) (done-fn (:end-msg @this-level))
       (and (not @level-checked) (not @done)) (reset! level-checked true)
       (and (not @level-checked) @done) (if (< 3 (swap! shuffles-so-far inc))
                                          (level-up identity)
@@ -139,7 +171,6 @@
   )
 
 
-
 (defn level-up [level-fn]
   (set! (.-visibility (.-style (dom/getElement "nextButton"))) "hidden")
   (swap! this-level-id level-fn)
@@ -149,6 +180,8 @@
   (reset! done false)
   (reset! shuffles-so-far 0)
   (set! (.-innerHTML (dom/getElement "levelCounter")) (str (inc @this-level-id)))
+  (handle-msg (:start-msg @this-level))
+
   ;(log (str @this-level))
   )
 
@@ -158,3 +191,5 @@
   (.requestAnimationFrame js/window animate))
 
 (begin)
+
+;(level-up (fn [x] 16))
