@@ -11,7 +11,7 @@
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require
   ;[clojure.browser.repl :as repl]
-    
+
             [goog.dom :as dom]
             [goog.events :as events]
             [cljs.core.async :refer [put! chan <! close!]])
@@ -192,4 +192,4 @@
 
 (begin)
 
-;(level-up (fn [x] 16))
+;(level-up (fn [x] 12))

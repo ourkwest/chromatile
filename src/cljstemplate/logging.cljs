@@ -4,7 +4,7 @@
 (def config {:core true
              :shape true
              :changes true
-             :levels false})
+             :levels true})
 
 (defn logger [log-name]
   (if (get config log-name true)

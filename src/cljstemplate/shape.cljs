@@ -2,7 +2,8 @@
   (:use [cljstemplate.logging :only [logger log-when-changes]]
         [cljstemplate.constance :only [PI TAU TAU_3RD TAU_4TH TAU_6TH TAU_8TH TAU_12TH
                                        ROOT_TWO ROOT_THREE]]
-        [cljstemplate.shapeconstance :only [square-pad square-radius square-inner-radius
+        [cljstemplate.shapeconstance :only [shape-side-length
+                                            square-pad square-radius square-inner-radius
                                             hex-pad hex-radius hex-inner-radius
                                             tri-pad tri-radius tri-inner-radius
                                             oct-pad oct-radius oct-inner-radius]])
@@ -12,7 +13,7 @@
 
 (def log (logger :shape))
 
-(def debug false)
+(def debug false)                                           ;show numbers on shapes
 
 
 (defn index-of [s v]
@@ -219,8 +220,6 @@
 
 
 (defn render-shape [context sf [x-offset y-offset] [mx my :as mouse] channels [_ bdr fg] {[x y r] :location n :n rotation :rotation wiring :wiring :as shape} id timestamp]
-  (set! (. context -lineWidth) 1)
-  (. context (setLineDash #js []))
 
 
   (let [alpha (alphas n)
@@ -231,9 +230,12 @@
         beta (+ r delta (* (or (:current rotation) (:position rotation)) alpha))
         gammas (iterate #(+ % alpha) beta)
         epsilons (iterate #(+ % alpha) (- beta delta))
-        channel-width (* 5 sf)
+        side-length (* shape-side-length sf)
+        channel-width (* side-length 0.07)
         xs (+ (* x sf) x-offset)
         ys (+ (* y sf) y-offset)]
+
+    (set! (. context -lineWidth) 1)
 
     (. context (beginPath))
     (. context (moveTo (+ xs (* radius (Math.sin beta))) (+ ys (* radius (Math.cos beta)))))
@@ -241,11 +243,8 @@
       (. context (lineTo (+ xs (* radius (Math.sin gamma))) (+ ys (* radius (Math.cos gamma))))))
     (. context (closePath))
 
-    ;(set! (. context -strokeStyle) (rgb-str bdr))
     (set! (. context -fillStyle) (rgba-str (conj fg (if (.isPointInPath context mx my) 0.6 1))))
-
     (. context (fill))
-    ;(. context (stroke))
 
     (. context (save))
     (. context (clip))
@@ -255,7 +254,7 @@
       (doseq [ch (range (count channels))]
         (let [channel (nth channels ch)
               channel-wiring (nth wiring ch)
-              ch-pos (* (- ch (/ (dec (count channels)) 2)) (/ inner-radius 2))]
+              ch-pos (* (- ch (/ (dec (count channels)) 2)) (/ inner-radius n) 2.5)]
           (doseq [[from onto [fw bw :as switched]] channel-wiring]
             (. context (beginPath))
             (let [[from-x from-y] [(Math.sin (nth epsilons from)) (Math.cos (nth epsilons from))]
@@ -274,26 +273,35 @@
               (. context (bezierCurveTo xb yb xc yc xd yd))
 
               (let [length-est (* inner-radius (get path-lengths [n (Math/abs (- from onto))] 2))
-                    offset (mod (* (/ timestamp 2000) (inc length-est)) (inc length-est))
-                    lineDash #js [1 (/ length-est 2)]]
+                    length-bit (/ length-est (int (/ length-est (* sf 10))))
+                    bit-1 (/ channel-width 3)                                 ; (* length-bit (/ 1 3))
+                    bit-2 (* length-bit (/ 2 3))
+                    bits (+ bit-1 bit-2)
+                    offset (mod (* (/ timestamp 1000) bits) bits)
+                    lineDash #js [bit-1 bit-2]]
 
                 ; Render background
                 (if (some #{:on} switched)
                   (do
                     (set! (. context -strokeStyle) "rgb(255,255,255)")
-                    (set! (. context -lineWidth) (inc (/ channel-width 2)))
+                    (set! (. context -lineWidth) (inc channel-width))
                     (. context (stroke))
                     (set! (. context -strokeStyle) (rgb-str channel))
-                    (set! (. context -lineWidth) (/ channel-width 2))
+                    (set! (. context -lineWidth) channel-width)
                     (. context (stroke))
+
+                    ;(set! (. context -strokeStyle) "rgba(255,255,255, 0.25)")
+                    ;(set! (. context -lineWidth) (/ channel-width 2))
+                    ;(. context (stroke))
 
                     )
                   (do
                     (set! (. context -strokeStyle) "rgb(0,0,0)")
-                    (set! (. context -lineWidth) (inc (/ channel-width 2)))
+                    (set! (. context -lineWidth) (inc (/ channel-width 3)))
                     (. context (stroke))
-                    (set! (. context -strokeStyle) (rgba-str (conj channel 0.75)))
-                    (set! (. context -lineWidth) (/ channel-width 2))
+                    (set! (. context -strokeStyle) (rgb-str channel))
+                    ;(set! (. context -strokeStyle) (rgb-str channel))
+                    (set! (. context -lineWidth) (/ channel-width 3))
                     (. context (stroke))))
 
                 ; Render blobs
@@ -302,14 +310,17 @@
                     (do
 
                       (. context (setLineDash lineDash))
-                      (set! (. context -lineDashOffset) os)
 
-                      (set! (. context -strokeStyle) (rgb-str channel))
-                      (set! (. context -lineWidth) channel-width)
+                      (set! (. context -lineDashOffset) os)
+                      (set! (. context -strokeStyle) "black")      ; "rgba(255,255,255, 0.75)"
+                      (set! (. context -lineWidth) (/ channel-width 3))
                       (. context (stroke))
-                      (set! (. context -strokeStyle) "rgba(255,255,255, 0.5)")
-                      (set! (. context -lineWidth) (/ channel-width 2))
-                      (. context (stroke))
+
+
+                      ;(set! (. context -lineDashOffset) (+ os bit-1))
+                      ;(set! (. context -strokeStyle) "rgba(0,0,0, 0.25)")
+                      ;(set! (. context -lineWidth) (/ channel-width 2))
+                      ;(. context (stroke))
 
                       ;(log (str "ldoA: " (. context -lineDashOffset))) ; TODO: wtf?
 
@@ -396,7 +407,7 @@
     (fill-circle context [xs ys radius] [0 0 0 1])
 
     (doseq [i (range channel-count)]
-      (let [f (mod (+ (/ timestamp 50) (* i (/ radius channel-count))) radius)]
+      (let [f (mod (+ (* sf timestamp 0.01) (* i (/ radius channel-count))) radius)]
         (fill-circle context [xs ys f] (conj (nth many-channels i) (- 1 (/ f radius))))))
 
     (. context (restore))
@@ -473,10 +484,10 @@
     (if (= args [context x y radius])
       cached-value
       (do
-        (log "CACHE: Args differ")
+        ;(log "CACHE: Args differ")
         (mk-gradient key context x y radius)))
     (do
-      (log "CACHE: Cache empty")
+      ;(log "CACHE: Cache empty")
       (mk-gradient key context x y radius))))
 
 
@@ -502,7 +513,7 @@
         [end] (:end level)
         ends #{start end}]
     (set! (. context -lineJoin) "round")
-    (set! (. context -lineCap) "round")
+    (set! (. context -lineCap) "butt")
     (if @done
       (render-attention :next context width height (/ (min width height) 2) timestamp))
     (-> level
